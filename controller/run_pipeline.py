@@ -2,7 +2,7 @@ import asyncio
 from playwright.async_api import async_playwright
 from service.place_searcher import fetch_places
 from service.place_data_collector import collect_place_data
-from io.save_data import save_place_info_csv, save_reviews_csv
+from storage.save_data import save_place_info_csv, save_reviews_csv
 
 async def run():
     places = fetch_places()

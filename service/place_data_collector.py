@@ -1,11 +1,9 @@
-import csv
-import asyncio
-from playwright.async_api import async_playwright
+
 import re
 import datetime
 import random
 
-async def crawl_place_info():
+async def crawl_place_info(page, place_id):
     url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
     await page.goto(url)
 
@@ -34,7 +32,7 @@ async def crawl_reviews(page, place_id, place_name):
     await page.goto(url)
     await page.wait_for_timeout(random.randint(1500, 2000))
 
-    for _ in range(30):
+    for _ in range(3):
         try:
             more_btn = await page.query_selector('a.fvwqf')
             if more_btn:
@@ -87,14 +85,27 @@ async def crawl_reviews(page, place_id, place_name):
             keywords_str = ", ".join([k.strip() for k in keywords])
             print("✅ keywords:", keywords_str)
 
+            # 리뷰 개수 및 방문 차수 추출
+            review_count_el = await r.query_selector("div.pui__RuLAax > span:nth-child(1)")
+            visit_count_el = await r.query_selector("div.pui__QKE5Pr > span.pui__gfuUIT:nth-child(2)")
+            review_count = await review_count_el.text_content() if review_count_el else "N/A"
+            visit_count = await visit_count_el.text_content() if visit_count_el else "N/A"
+
+            # 리뷰 수: "리뷰 14" → 14
+            review_count = re.sub(r"[^\d]", "", review_count)
+            # 방문 차수: "1번째 방문" → 1
+            visit_count = re.sub(r"[^\d]", "", visit_count)
+
             result.append({
-                "place_name": place_name,
+                "place_id": place_id,
                 "nickname": nickname.strip(),
                 "content": content.strip(),
                 "date": date.strip(),
                 "revisit": revisit.strip(),
                 "situations": situations_str,
                 "keywords": keywords_str,
+                "review_count": review_count,
+                "visit_count": visit_count,
             })
         except Exception as e:
             print(f"[{place_id}] Error parsing review: {e}")
