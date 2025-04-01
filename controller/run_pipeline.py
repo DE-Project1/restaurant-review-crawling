@@ -37,7 +37,7 @@ async def process_place(place):
         try:
             info, reviews = await collect_place_data(page, place["name"], place["id"])
             await save_place_info_csv(info)
-            await save_reviews_csv(reviews)
+            # await save_reviews_csv(reviews)
         except Exception as e:
             print(f"[ERROR] Failed to collect/save for {place['name']}: {e}")
 

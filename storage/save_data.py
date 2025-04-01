@@ -3,8 +3,13 @@ import os
 
 PLACE_INFO_PATH = "data/place_info.csv"
 PLACE_REVIEW_PATH = "data/reviews.csv"
-
-PLACE_INFO_FIELDS = ["place_id", "name", "category", "address", "phone", "rating", "review_count"]
+PLACE_INFO_FIELDS = [
+    "place_id", "name", "category", "address",
+    "opening_hours", "services",
+    "naver_rating",
+    "visitor_review_count", "blog_review_count",
+    "crawled_at"
+]
 REVIEW_FIELDS = ["place_id", "nickname", "content", "date", "revisit", "situations", "keywords", "review_count", "visit_count"]
 
 def save_place_info_csv(info: dict):

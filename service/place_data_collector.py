@@ -1,7 +1,39 @@
 
 import re
-import datetime
+from datetime import datetime
 import random
+
+KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
+
+async def parse_opening_hours(page):
+    try:
+        schedule_blocks = await page.query_selector_all('div.w9QyJ')
+        weekly_dict = {}
+
+        for block in schedule_blocks:
+            day_el = await block.query_selector('span.i8cJw')
+            detail_el = await block.query_selector('div.H3ua4')
+
+            day = await day_el.text_content() if day_el else ""
+            detail = await detail_el.inner_text() if detail_el else ""
+
+            if day and detail:
+                day = day.strip()
+                detail = detail.replace("\n", ", ").strip()
+                weekly_dict[day] = f"{day} | {detail}"
+
+        # "매일"만 있는 경우는 그대로 반환
+        if "매일" in weekly_dict:
+            return weekly_dict["매일"]
+
+        # 요일 구성일 경우 월~일 순으로 정렬
+        sorted_hours = [weekly_dict[day] for day in KOR_WEEKDAYS if day in weekly_dict]
+        return " / ".join(sorted_hours)
+
+    except Exception as e:
+        print(f"Error parsing opening hours: {e}")
+        return "N/A"
+
 
 async def crawl_place_info(page, place_id):
     url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
@@ -10,21 +42,53 @@ async def crawl_place_info(page, place_id):
     info = {}
 
     try:
-        name_el = await page.query_selector('span.Fc1rA')  # 장소 이름
-        category_el = await page.query_selector('span.DJJvD')  # 업종
-        address_el = await page.query_selector('span.LDgIH')  # 주소
-        phone_el = await page.query_selector('span.xlx7Q')  # 전화번호
+        name_el = await page.query_selector('span.GHAhO')
+        category_el = await page.query_selector('span.lnJFt')
+        address_el = await page.query_selector('span.LDgIH')
+
+        # 🔽 영업시간 영역 클릭 (펼쳐보기)
+        toggle_el = await page.query_selector('a.gKP9i[aria-expanded="false"]')
+        if toggle_el:
+            await toggle_el.click()
+            await page.wait_for_timeout(500)  # 약간 대기
+
+        service_el = await page.query_selector('div.xPvPE')
+
+        # ⬇️ 별점
+        rating_el = await page.query_selector('span.PXMot.LXIwF')
+        rating_text = await rating_el.text_content() if rating_el else None
+        naver_rating = re.search(r"[\d.]+", rating_text).group() if rating_text else "N/A"
+
+        # ⬇️ 리뷰 수
+        visitor_review_el = await page.query_selector('a[href*="/review/visitor"]')
+        blog_review_el = await page.query_selector('a[href*="/review/ugc"]')
+
+        visitor_review_text = await visitor_review_el.text_content() if visitor_review_el else ""
+        blog_review_text = await blog_review_el.text_content() if blog_review_el else ""
+
+        visitor_review_count = int(re.sub(r"[^\d]", "", visitor_review_text)) if visitor_review_text else 0
+        blog_review_count = int(re.sub(r"[^\d]", "", blog_review_text)) if blog_review_text else 0
+
+        # ⬇️ 수집 시각
+        crawled_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         info["place_id"] = place_id
         info["name"] = await name_el.text_content() if name_el else "N/A"
         info["category"] = await category_el.text_content() if category_el else "N/A"
         info["address"] = await address_el.text_content() if address_el else "N/A"
-        info["phone"] = await phone_el.text_content() if phone_el else "N/A"
+        info["opening_hours"] = await parse_opening_hours(page)
+        info["services"] = await service_el.text_content() if service_el else "N/A"
+
+        info["naver_rating"] = naver_rating
+        info["visitor_review_count"] = visitor_review_count
+        info["blog_review_count"] = blog_review_count
+        info["crawled_at"] = crawled_at
 
     except Exception as e:
         print(f"[{place_id}] Error crawling place info: {e}")
 
     return info
+
     
     
 async def crawl_reviews(page, place_id, place_name):
@@ -32,7 +96,7 @@ async def crawl_reviews(page, place_id, place_name):
     await page.goto(url)
     await page.wait_for_timeout(random.randint(1500, 2000))
 
-    for _ in range(3):
+    for _ in range(1):
         try:
             more_btn = await page.query_selector('a.fvwqf')
             if more_btn:
@@ -49,7 +113,7 @@ async def crawl_reviews(page, place_id, place_name):
     print(f"[{place_name}] 리뷰 수집 대상: {len(review_items)}개")
 
     result = []
-    for r in review_items[:100]: # 리뷰 갯수
+    for r in review_items[:1]: # 리뷰 갯수
         try:
             nickname_el = await r.query_selector("div.pui__JiVbY3 span.pui__uslU0d span.pui__NMi-Dp")
             content_el = await r.query_selector("div.pui__vn15t2 a")
