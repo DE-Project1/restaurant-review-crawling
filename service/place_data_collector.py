@@ -1,4 +1,3 @@
-
 import re
 from datetime import datetime
 import random
@@ -107,25 +106,25 @@ async def crawl_reviews(page, place_id, place_name):
     url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
     await page.goto(url)
     await page.wait_for_timeout(random.randint(1500, 2000))
-
-    for _ in range(1):
+    # 더보기 버튼을 여러 번 클릭하도록 수정
+    for _ in range(5):  # 5번 정도로 증가
         try:
             more_btn = await page.query_selector('a.fvwqf')
             if more_btn:
                 await more_btn.click()
-                await page.wait_for_timeout(random.randint(400, 700))
+                await page.wait_for_timeout(random.randint(1000, 1500))  # 대기 시간 증가
             else:
                 break
         except:
             break
 
-    await page.wait_for_timeout(1000)
+    await page.wait_for_timeout(1500)
 
     review_items = await page.query_selector_all("li.place_apply_pui")
     print(f"[{place_name}] 리뷰 수집 대상: {len(review_items)}개")
 
     result = []
-    for r in review_items[:1]: # 리뷰 갯수
+    for r in review_items[:20]:  # 리뷰 수집 개수를 20개로 증가
         try:
             nickname_el = await r.query_selector("div.pui__JiVbY3 span.pui__uslU0d span.pui__NMi-Dp")
             content_el = await r.query_selector("div.pui__vn15t2 a")
