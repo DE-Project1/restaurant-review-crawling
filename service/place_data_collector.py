@@ -20,7 +20,7 @@ async def parse_opening_hours(page):
             if day and detail:
                 day = day.strip()
                 detail = detail.replace("\n", ", ").strip()
-                weekly_dict[day] = f"{day} | {detail}"
+                weekly_dict[day] = f"{day} {detail}"
 
         # "매일"만 있는 경우는 그대로 반환
         if "매일" in weekly_dict:
@@ -28,7 +28,7 @@ async def parse_opening_hours(page):
 
         # 요일 구성일 경우 월~일 순으로 정렬
         sorted_hours = [weekly_dict[day] for day in KOR_WEEKDAYS if day in weekly_dict]
-        return " / ".join(sorted_hours)
+        return " ".join(sorted_hours)
 
     except Exception as e:
         print(f"Error parsing opening hours: {e}")
@@ -68,6 +68,17 @@ async def crawl_place_info(page, place_id):
 
         visitor_review_count = int(re.sub(r"[^\d]", "", visitor_review_text)) if visitor_review_text else 0
         blog_review_count = int(re.sub(r"[^\d]", "", blog_review_text)) if blog_review_text else 0
+        if isinstance(blog_review_count, tuple):
+            blog_review_count = blog_review_count[0]
+        print(blog_review_count)
+        # 뱃지
+        badge_els = await page.query_selector_all('div.XtBbS')
+        badges = []
+
+        for el in badge_els:
+            text = await el.text_content()
+            if text:
+                badges.append(text.strip())
 
         # ⬇️ 수집 시각
         crawled_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -82,6 +93,7 @@ async def crawl_place_info(page, place_id):
         info["naver_rating"] = naver_rating
         info["visitor_review_count"] = visitor_review_count
         info["blog_review_count"] = blog_review_count
+        info["badges"] =", ".join(badges) if badges else "N/A"
         info["crawled_at"] = crawled_at
 
     except Exception as e:
@@ -118,12 +130,10 @@ async def crawl_reviews(page, place_id, place_name):
             nickname_el = await r.query_selector("div.pui__JiVbY3 span.pui__uslU0d span.pui__NMi-Dp")
             content_el = await r.query_selector("div.pui__vn15t2 a")
             date_el = await r.query_selector("div.pui__QKE5Pr > span.pui__gfuUIT > span.pui__blind")
-            revisit_el = await r.query_selector("div.pui__QKE5Pr > span:nth-child(2)")
 
             nickname = await nickname_el.text_content() if nickname_el else "N/A"
             content = await content_el.text_content() if content_el else "N/A"
             date = await date_el.text_content() if date_el else "N/A"
-            revisit = await revisit_el.text_content() if revisit_el else "N/A"
 
             # 날짜 파싱
             if date != "N/A":
@@ -135,7 +145,6 @@ async def crawl_reviews(page, place_id, place_name):
             print("✅ nickname:", nickname)
             print("✅ content:", content)
             print("✅ date:", date)
-            print("✅ revisit:", revisit)
 
             # 방문 상황 키워드(점심, 데이트, 바로 입장 등)
             situation_els = await r.query_selector_all("a.pui__uqSlGl > span.pui__V8F9nN")
@@ -165,11 +174,10 @@ async def crawl_reviews(page, place_id, place_name):
                 "nickname": nickname.strip(),
                 "content": content.strip(),
                 "date": date.strip(),
-                "revisit": revisit.strip(),
                 "situations": situations_str,
                 "keywords": keywords_str,
                 "review_count": review_count,
-                "visit_count": visit_count,
+                "visit_count": visit_count
             })
         except Exception as e:
             print(f"[{place_id}] Error parsing review: {e}")

@@ -8,7 +8,7 @@ PLACE_INFO_FIELDS = [
     "opening_hours", "services",
     "naver_rating",
     "visitor_review_count", "blog_review_count",
-    "crawled_at"
+    "badges", "crawled_at"
 ]
 REVIEW_FIELDS = ["place_id", "nickname", "content", "date", "revisit", "situations", "keywords", "review_count", "visit_count"]
 
