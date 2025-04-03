@@ -5,7 +5,7 @@ from service.place_data_collector import collect_place_data
 from storage.save_data import save_place_info_csv, save_reviews_csv
 
 async def run():
-    places = fetch_places()
+    places = fetch_places(district="서대문구", limit=50)
     """
     place_dict = {
         "소녀방앗간_이화여대점": 38232807,
@@ -36,8 +36,10 @@ async def process_place(place):
 
         try:
             info, reviews = await collect_place_data(page, place["name"], place["id"])
-            await save_place_info_csv(info)
+            # await save_place_info_csv(info)  # 비동기 호출 시도
+            save_place_info_csv(info)        # 동기 호출
             # await save_reviews_csv(reviews)
+            # 아래 중 하나로 (storage/save_data.py에서 확인 후 결정)
         except Exception as e:
             print(f"[ERROR] Failed to collect/save for {place['name']}: {e}")
 

@@ -1,9 +1,9 @@
-
 import re
 from datetime import datetime
 import random
 
 KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
+
 
 async def parse_opening_hours(page):
     try:
@@ -70,7 +70,7 @@ async def crawl_place_info(page, place_id):
         blog_review_count = int(re.sub(r"[^\d]", "", blog_review_text)) if blog_review_text else 0
         if isinstance(blog_review_count, tuple):
             blog_review_count = blog_review_count[0]
-        print(blog_review_count)
+
         # 뱃지
         badge_els = await page.query_selector_all('div.XtBbS')
         badges = []
@@ -93,7 +93,7 @@ async def crawl_place_info(page, place_id):
         info["naver_rating"] = naver_rating
         info["visitor_review_count"] = visitor_review_count
         info["blog_review_count"] = blog_review_count
-        info["badges"] =", ".join(badges) if badges else "N/A"
+        info["badges"] = ", ".join(badges) if badges else "N/A"
         info["crawled_at"] = crawled_at
 
     except Exception as e:
@@ -101,43 +101,52 @@ async def crawl_place_info(page, place_id):
 
     return info
 
-    
-    
+
 async def crawl_reviews(page, place_id, place_name):
     url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
     await page.goto(url)
     await page.wait_for_timeout(random.randint(1500, 2000))
+    # 스크롤 기반 자동 로딩 방식
+    MAX_REVIEWS = 100
 
-    for _ in range(1):
-        try:
-            more_btn = await page.query_selector('a.fvwqf')
-            if more_btn:
-                await more_btn.click()
-                await page.wait_for_timeout(random.randint(400, 700))
-            else:
-                break
-        except:
+    # 리뷰 최대 로딩 유도
+    for _ in range(50):  # 더 많은 반복 허용
+        review_items = await page.query_selector_all("li.place_apply_pui")
+        if len(review_items) >= MAX_REVIEWS:
             break
 
-    await page.wait_for_timeout(1000)
+        await page.mouse.wheel(0, 5000)  # 하단까지 스크롤
+        await page.wait_for_timeout(random.randint(800, 1200))
+
+        more_btn = await page.query_selector("a.fvwqf")
+        if more_btn:
+            await more_btn.click()
+            await page.wait_for_timeout(random.randint(800, 1200))
+        else:
+            break
+
+    await page.wait_for_timeout(1500)
 
     review_items = await page.query_selector_all("li.place_apply_pui")
     print(f"[{place_name}] 리뷰 수집 대상: {len(review_items)}개")
 
     result = []
-    for r in review_items[:1]: # 리뷰 갯수
+    for r in review_items[:MAX_REVIEWS]:
         try:
             nickname_el = await r.query_selector("div.pui__JiVbY3 span.pui__uslU0d span.pui__NMi-Dp")
             content_el = await r.query_selector("div.pui__vn15t2 a")
-            date_el = await r.query_selector("div.pui__QKE5Pr > span.pui__gfuUIT > span.pui__blind")
 
             nickname = await nickname_el.text_content() if nickname_el else "N/A"
             content = await content_el.text_content() if content_el else "N/A"
-            date = await date_el.text_content() if date_el else "N/A"
+
+            # 날짜 element들 모두 찾기
+            date_els = await r.query_selector_all("div.pui__QKE5Pr > span.pui__gfuUIT > span.pui__blind")
+            date_raw = await date_els[1].text_content() if len(date_els) > 1 else "N/A"
 
             # 날짜 파싱
-            if date != "N/A":
-                m = re.search(r"(\d{4})년 (\d{1,2})월 (\d{1,2})일", date)
+            date = "N/A"
+            if date_raw != "N/A":
+                m = re.search(r"(\d{4})년 (\d{1,2})월 (\d{1,2})일", date_raw)
                 if m:
                     y, mth, d = m.groups()
                     date = f"{int(y):04d}-{int(mth):02d}-{int(d):02d}"

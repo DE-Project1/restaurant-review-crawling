@@ -10,7 +10,7 @@ PLACE_INFO_FIELDS = [
     "visitor_review_count", "blog_review_count",
     "badges", "crawled_at"
 ]
-REVIEW_FIELDS = ["place_id", "nickname", "content", "date", "revisit", "situations", "keywords", "review_count", "visit_count"]
+REVIEW_FIELDS = ["place_id", "nickname", "content", "date", "situations", "keywords", "review_count", "visit_count"]
 
 def save_place_info_csv(info: dict):
     file_exists = os.path.exists(PLACE_INFO_PATH)
