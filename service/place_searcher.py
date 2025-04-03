@@ -1,22 +1,22 @@
 from typing import List, Dict
 
-# 🍽️ 설정 상수
 TARGET_DISTRICT = "서대문구"
-MAX_PLACE_COUNT = 400
+MAX_PLACE_COUNT = 100
 MIN_REVIEW_COUNT = 100
 MIN_RATING = 4.2
 
-def fetch_places(district: str, limit: int) -> List[Dict]:
+def fetch_places(district: str) -> List[Dict]:
     """
     네이버 지도를 통해 지역 음식점 목록을 가져오고 맛집 조건을 부여함.
     """
+
     try:
         from service.naver_api import search_naver_map  # 필요 시 이 위치에 import
     except ImportError:
-        print("❗ search_naver_map 함수를 찾을 수 없습니다.")
+        print("❗search_naver_map 함수를 찾을 수 없습니다.")
         return []
 
-    places: List[Dict] = search_naver_map(district, limit)
+    places: List[Dict] = search_naver_map(district, MAX_PLACE_COUNT)
 
     for place in places:
         place["is_matjip"] = is_matjip(place)
