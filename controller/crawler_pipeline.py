@@ -17,14 +17,13 @@ async def run():
     # 동 리스트를 batch로 나누기
     district_batches = [DISTRICT_LIST[i:i + DISTRICT_BATCH_SIZE] for i in range(0, len(DISTRICT_LIST), DISTRICT_BATCH_SIZE)]
 
-    sema = asyncio.Semaphore(TABS_PER_DISTRICT_BATCH) # 동시에 5개의 탭만 허용하고, 나머지는 대기
+    # 동시에 5개의 탭만 허용하고, 나머지는 대기
+    sema = asyncio.Semaphore(TABS_PER_DISTRICT_BATCH)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/119.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
         )
 
         for batch in district_batches:
@@ -42,8 +41,8 @@ async def run():
 async def process_district_batch(batch):
     places = []
     for district in batch:
-        fetched = fetch_places(district=district)
-        places.extend([p for p in fetched if p["is_matjip"]])
+        fetched = await fetch_places(district)
+        places.extend(fetched)
     return places
 
 # 탭 수를 세마포어로 하며 음식점 수집
