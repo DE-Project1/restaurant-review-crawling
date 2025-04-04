@@ -2,9 +2,6 @@ import re
 from datetime import datetime
 import random
 
-KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
-
-
 async def parse_opening_hours(page):
     try:
         schedule_blocks = await page.query_selector_all('div.w9QyJ')
@@ -27,6 +24,7 @@ async def parse_opening_hours(page):
             return weekly_dict["매일"]
 
         # 요일 구성일 경우 월~일 순으로 정렬
+        KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
         sorted_hours = [weekly_dict[day] for day in KOR_WEEKDAYS if day in weekly_dict]
         return " ".join(sorted_hours)
 
@@ -194,6 +192,10 @@ async def crawl_reviews(page, place_id, place_name):
 
 
 async def collect_place_data(page, place_name: str, place_id: int):
-    info = await crawl_place_info(page, place_id)
     reviews = await crawl_reviews(page, place_id, place_name)
+    if len(reviews) < 100:
+        print(f"[{place_name}] 리뷰 수 부족({len(reviews)}개), 크롤링 생략")
+        return None, None
+
+    info = await crawl_place_info(page, place_id)
     return info, reviews
