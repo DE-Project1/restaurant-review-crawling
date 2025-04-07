@@ -2,8 +2,6 @@ import re
 from datetime import datetime
 import random
 
-KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
-
 async def parse_opening_hours(page):
     try:
         schedule_blocks = await page.query_selector_all('div.w9QyJ')
@@ -26,6 +24,7 @@ async def parse_opening_hours(page):
             return weekly_dict["매일"]
 
         # 요일 구성일 경우 월~일 순으로 정렬
+        KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
         sorted_hours = [weekly_dict[day] for day in KOR_WEEKDAYS if day in weekly_dict]
         return " ".join(sorted_hours)
 
@@ -69,7 +68,7 @@ async def crawl_place_info(page, place_id):
         blog_review_count = int(re.sub(r"[^\d]", "", blog_review_text)) if blog_review_text else 0
         if isinstance(blog_review_count, tuple):
             blog_review_count = blog_review_count[0]
-        print(blog_review_count)
+
         # 뱃지
         badge_els = await page.query_selector_all('div.XtBbS')
         badges = []
@@ -92,7 +91,7 @@ async def crawl_place_info(page, place_id):
         info["naver_rating"] = naver_rating
         info["visitor_review_count"] = visitor_review_count
         info["blog_review_count"] = blog_review_count
-        info["badges"] =", ".join(badges) if badges else "N/A"
+        info["badges"] = ", ".join(badges) if badges else "N/A"
         info["crawled_at"] = crawled_at
 
     except Exception as e:
@@ -100,22 +99,29 @@ async def crawl_place_info(page, place_id):
 
     return info
 
-    
-    
+
 async def crawl_reviews(page, place_id, place_name):
     url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
     await page.goto(url)
     await page.wait_for_timeout(random.randint(1500, 2000))
-    # 더보기 버튼을 여러 번 클릭하도록 수정
-    for _ in range(5):  # 5번 정도로 증가
-        try:
-            more_btn = await page.query_selector('a.fvwqf')
-            if more_btn:
-                await more_btn.click()
-                await page.wait_for_timeout(random.randint(1000, 1500))  # 대기 시간 증가
-            else:
-                break
-        except:
+    
+    # 스크롤 기반 자동 로딩 방식
+    MAX_REVIEWS = 100
+
+    # 리뷰 최대 로딩 유도
+    for _ in range(50):  # 더 많은 반복 허용
+        review_items = await page.query_selector_all("li.place_apply_pui")
+        if len(review_items) >= MAX_REVIEWS:
+            break
+
+        await page.mouse.wheel(0, 5000)  # 하단까지 스크롤
+        await page.wait_for_timeout(random.randint(800, 1200))
+
+        more_btn = await page.query_selector("a.fvwqf")
+        if more_btn:
+            await more_btn.click()
+            await page.wait_for_timeout(random.randint(1000, 1500))  # 대기 시간 증가
+        else:
             break
 
     await page.wait_for_timeout(1500)
@@ -124,19 +130,23 @@ async def crawl_reviews(page, place_id, place_name):
     print(f"[{place_name}] 리뷰 수집 대상: {len(review_items)}개")
 
     result = []
-    for r in review_items[:20]:  # 리뷰 수집 개수를 20개로 증가
+
+    for r in review_items[:MAX_REVIEWS]:
         try:
             nickname_el = await r.query_selector("div.pui__JiVbY3 span.pui__uslU0d span.pui__NMi-Dp")
             content_el = await r.query_selector("div.pui__vn15t2 a")
-            date_el = await r.query_selector("div.pui__QKE5Pr > span.pui__gfuUIT > span.pui__blind")
 
             nickname = await nickname_el.text_content() if nickname_el else "N/A"
             content = await content_el.text_content() if content_el else "N/A"
-            date = await date_el.text_content() if date_el else "N/A"
+
+            # 날짜 element들 모두 찾기
+            date_els = await r.query_selector_all("div.pui__QKE5Pr > span.pui__gfuUIT > span.pui__blind")
+            date_raw = await date_els[1].text_content() if len(date_els) > 1 else "N/A"
 
             # 날짜 파싱
-            if date != "N/A":
-                m = re.search(r"(\d{4})년 (\d{1,2})월 (\d{1,2})일", date)
+            date = "N/A"
+            if date_raw != "N/A":
+                m = re.search(r"(\d{4})년 (\d{1,2})월 (\d{1,2})일", date_raw)
                 if m:
                     y, mth, d = m.groups()
                     date = f"{int(y):04d}-{int(mth):02d}-{int(d):02d}"
@@ -184,6 +194,10 @@ async def crawl_reviews(page, place_id, place_name):
 
 
 async def collect_place_data(page, place_name: str, place_id: int):
-    info = await crawl_place_info(page, place_id)
     reviews = await crawl_reviews(page, place_id, place_name)
+    if len(reviews) < 100:
+        print(f"[{place_name}] 리뷰 수 부족({len(reviews)}개), 크롤링 생략")
+        return None, None
+
+    info = await crawl_place_info(page, place_id)
     return info, reviews

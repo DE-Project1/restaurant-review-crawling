@@ -2,7 +2,7 @@ from typing import List, Dict
 import re, asyncio
 from playwright.async_api import async_playwright
 
-# 허용되는 음식점 카테고리 목록
+
 ACCEPTED_CATEGORIES = [
     # 한식 계열
     "한식", "쌈밥", "보리밥", "비빔밥", "국밥", "찌개,전골", "곰탕,설렁탕", "김치찌개", "부대찌개", "청국장",
@@ -41,7 +41,6 @@ ACCEPTED_CATEGORIES = [
     "야식", "사철,영양탕", "사찰음식", "기사식당", "향토음식", "이북음식", "1인용", "레스토랑", "자연담은화로", "기타"
 ]
 
-# 설정값들
 MAX_PLACES = 100
 MIN_REVIEW_COUNT = 100
 MIN_RATING = 4.1
