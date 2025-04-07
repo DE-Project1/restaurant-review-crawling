@@ -52,6 +52,7 @@ async def collect_with_semaphore(context, place, sema):
         pname = place['name']
         pid = place['id']
         try:
+
             print(f"📌 크롤링 시작: {pname} ({pid})")
             info, reviews = await asyncio.wait_for(
                 collect_place_data(page, pname, pid),
@@ -62,6 +63,7 @@ async def collect_with_semaphore(context, place, sema):
             print(f"✅ 저장 완료: {pname} | 리뷰 수: {len(reviews)}")
         except asyncio.TimeoutError:
             print(f"[ERROR] Timeout - {pname} ({pid})")
+            
         except Exception as e:
             print(f"[ERROR] 예외 발생 - {pname} ({pid}): {e}")
 

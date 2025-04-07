@@ -104,6 +104,7 @@ async def crawl_reviews(page, place_id, place_name):
     url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
     await page.goto(url)
     await page.wait_for_timeout(random.randint(1500, 2000))
+    
     # 스크롤 기반 자동 로딩 방식
     MAX_REVIEWS = 100
 
@@ -119,7 +120,7 @@ async def crawl_reviews(page, place_id, place_name):
         more_btn = await page.query_selector("a.fvwqf")
         if more_btn:
             await more_btn.click()
-            await page.wait_for_timeout(random.randint(800, 1200))
+            await page.wait_for_timeout(random.randint(1000, 1500))  # 대기 시간 증가
         else:
             break
 
@@ -129,6 +130,7 @@ async def crawl_reviews(page, place_id, place_name):
     print(f"[{place_name}] 리뷰 수집 대상: {len(review_items)}개")
 
     result = []
+
     for r in review_items[:MAX_REVIEWS]:
         try:
             nickname_el = await r.query_selector("div.pui__JiVbY3 span.pui__uslU0d span.pui__NMi-Dp")
