@@ -4,13 +4,14 @@ import os
 PLACE_INFO_PATH = "data/place_info.csv"
 PLACE_REVIEW_PATH = "data/reviews.csv"
 PLACE_INFO_FIELDS = [
-    "place_id", "name", "category", "address",
-    "opening_hours", "services",
-    "naver_rating",
-    "visitor_review_count", "blog_review_count",
-    "badges", "crawled_at"
+    "place_id", "adm_dong_code", "name", "category",
+    "address", "opening_hours", "services", "naver_rating",
+    "visitor_review_count", "blog_review_count", "badges", "crawled_at"
 ]
-REVIEW_FIELDS = ["place_id", "nickname", "content", "date", "situations", "keywords", "review_count", "visit_count"]
+REVIEW_FIELDS = [
+    "place_id", "nickname", "content", "date",
+    "situations", "keywords", "review_count", "visit_count"
+]
 
 def save_place_info_csv(info: dict):
     file_exists = os.path.exists(PLACE_INFO_PATH)

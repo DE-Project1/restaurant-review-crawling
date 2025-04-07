@@ -32,8 +32,7 @@ async def parse_opening_hours(page):
         print(f"Error parsing opening hours: {e}")
         return "N/A"
 
-
-async def crawl_place_info(page, place_id):
+async def crawl_place_info(page, place_id, adm_dong_code):
     url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
     await page.goto(url)
 
@@ -93,6 +92,7 @@ async def crawl_place_info(page, place_id):
         info["blog_review_count"] = blog_review_count
         info["badges"] = ", ".join(badges) if badges else "N/A"
         info["crawled_at"] = crawled_at
+        info["adm_dong_code"] = adm_dong_code
 
     except Exception as e:
         print(f"[{place_id}] Error crawling place info: {e}")
@@ -193,11 +193,11 @@ async def crawl_reviews(page, place_id, place_name):
     return result
 
 
-async def collect_place_data(page, place_name: str, place_id: int):
+async def collect_place_data(page, place_name: str, place_id: int, adm_dong_code):
     reviews = await crawl_reviews(page, place_id, place_name)
     if len(reviews) < 100:
         print(f"[{place_name}] 리뷰 수 부족({len(reviews)}개), 크롤링 생략")
         return None, None
 
-    info = await crawl_place_info(page, place_id)
+    info = await crawl_place_info(page, place_id, adm_dong_code)
     return info, reviews
