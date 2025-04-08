@@ -3,6 +3,8 @@ import os
 
 PLACE_INFO_DIR = "data/place_info"
 PLACE_REVIEW_DIR = "data/reviews"
+FAILED_DIR = "data/failed_places"  # <- 여기도 디렉토리 지정
+
 PLACE_INFO_FIELDS = [
     "place_id", "adm_dong_code", "name", "category",
     "address", "opening_hours", "services", "naver_rating",
@@ -33,15 +35,12 @@ def save_reviews_csv(reviews: list[dict], adm_dong_code):
             writer.writeheader()
         writer.writerows([{k: v for k, v in r.items() if k in REVIEW_FIELDS} for r in reviews])
 
-def save_failed_case(pname, pid, adm_dong_code, file_path="data/failed_places.csv"):
+def save_failed_case(pname, pid, adm_dong_code):
+    os.makedirs(FAILED_DIR, exist_ok=True)
+    file_path = os.path.join(FAILED_DIR, f"failed_places_{adm_dong_code}.csv")
     fieldnames = ["adm_dong_code", "pname", "pid"]
     try:
-        file_exists = False
-        try:
-            with open(file_path, 'r', encoding='utf-8-sig'):
-                file_exists = True
-        except FileNotFoundError:
-            pass
+        file_exists = os.path.exists(file_path)
 
         with open(file_path, 'a', newline='', encoding='utf-8-sig') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
