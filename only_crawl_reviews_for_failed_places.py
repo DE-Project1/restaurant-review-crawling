@@ -52,6 +52,7 @@ async def only_review_crawling_batch(input_path):
     failed_rows = [row for _, _, pid, row in targets if pid not in succeeded_pids]
     if failed_rows:
         fieldnames = failed_rows[0].keys()
+        with open(OUTPUT_PATH, "w", newline='', encoding='utf-8-sig') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(failed_rows)
