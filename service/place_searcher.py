@@ -87,71 +87,34 @@ async def fetch_places(district: str, max_places: int) -> List[Dict]:
                 items = await search_frame.query_selector_all("li.UEzoS.rTjJo")
                 print(f"✅ {current_page}페이지에서 {len(items)}개 장소 발견")
 
-                for i, item in enumerate(items):
-                    try:
-                        if len(results) >= max_places:
+                # 각 items에서 장소 얻기
+                await parse_places_from_items(items, page, max_places, results)
+
+                # 다음 페이지 넘기기
+                next_page_buttons = await search_frame.query_selector_all("a.eUTV2")
+                next_btn = None
+
+                for btn in next_page_buttons:
+                    span = await btn.query_selector("span.place_blind")
+                    if span:
+                        text = await span.inner_text()
+                        if "다음페이지" in text:
+                            next_btn = btn
                             break
 
-                        # 장소 이름
-                        place_name_el = await item.query_selector("span.TYaxT")
-                        place_name = await place_name_el.text_content() if place_name_el else "N/A"
-
-                        # 카테고리
-                        category_el = await item.query_selector("span.KCMnt")
-                        category = await category_el.text_content() if category_el else "N/A"
-                        if category not in ACCEPTED_CATEGORIES:
-                            print(f"🚫 카테고리 제외: {category}")
-                            continue
-
-                        # 방문자 리뷰
-                        review_el = await item.query_selector_all("span.h69bs")
-                        review_count = 0
-                        for span in review_el:
-                            text = await span.inner_text()
-                            if "리뷰" in text:
-                                digits = re.search(r"(\d+)", text)
-                                if digits:
-                                    review_count = int(digits.group(1))
-                                break
-                        if review_count < MIN_REVIEW_COUNT:
-                            print(f"🚫 리뷰 수 부족: {review_count}")
-                            continue
-
-                        # 별점
-                        rating = None
-                        rating_el = await item.query_selector("span.h69bs.orXYY")
-                        rating_text = await rating_el.text_content() if rating_el else None
-                        if rating_text:
-                            match_rating = re.search(r"[\d.]+", rating_text)
-                            rating = float(match_rating.group()) if match_rating else 0.0
-                            if rating < MIN_RATING:
-                                print(f"🚫 별점 낮음: {rating}")
-                                continue
-
-                        click_target = await item.query_selector("div.place_bluelink")
-                        if click_target:
-                            await click_target.click()
-                            await page.wait_for_timeout(1500)
-                            detail_url = page.url
-                            match = re.search(r'/place/(\d+)', detail_url)
-                            if match:
-                                place_id = match.group(1)
-                                print(f"✅ {len(results) + 1}번째 장소 ID: {place_id}")
-                                results.append({
-                                    "id": place_id,
-                                    "name": place_name,
-                                    "category": category,
-                                    "review_count": review_count,
-                                    "rating": rating,
-                                })
-                            else:
-                                print("❌ place_id 추출 실패")
-
-                    except Exception as e:
-                        print(f"[ERROR] 항목 처리 중 오류: {e}")
-                        continue
-
-                current_page += 1
+                if next_btn:
+                    is_disabled = await next_btn.get_attribute("aria-disabled")
+                    if is_disabled == "false":
+                        print("➡️ 다음 페이지로 이동 중...")
+                        await next_btn.click()
+                        await page.wait_for_timeout(1500)
+                        current_page += 1
+                    else:
+                        print("⛔ 다음 페이지 버튼이 비활성화됨. 종료")
+                        break
+                else:
+                    print("❌ 다음페이지 버튼 못 찾음. 종료")
+                    break
 
             except Exception as e:
                 print(f"[ERROR] 페이지 처리 중 오류: {e}")
@@ -159,3 +122,69 @@ async def fetch_places(district: str, max_places: int) -> List[Dict]:
 
         await browser.close()
         return results
+
+async def parse_places_from_items(items, page, max_places: int, results: List[Dict]) -> None:
+    for item in items:
+        if len(results) >= max_places:
+            break
+
+        try:
+            # 장소 이름
+            place_name_el = await item.query_selector("span.TYaxT")
+            place_name = await place_name_el.text_content() if place_name_el else "N/A"
+
+            # 카테고리
+            category_el = await item.query_selector("span.KCMnt")
+            category = await category_el.text_content() if category_el else "N/A"
+            if category not in ACCEPTED_CATEGORIES:
+                print(f"🚫 카테고리 제외: {category}")
+                continue
+
+            # 방문자 리뷰
+            review_el = await item.query_selector_all("span.h69bs")
+            review_count = 0
+            for span in review_el:
+                text = await span.inner_text()
+                if "리뷰" in text:
+                    digits = re.search(r"(\d+)", text)
+                    if digits:
+                        review_count = int(digits.group(1))
+                    break
+            if review_count < MIN_REVIEW_COUNT:
+                print(f"🚫 리뷰 수 부족: {review_count}")
+                continue
+
+            # 별점
+            rating = None
+            rating_el = await item.query_selector("span.h69bs.orXYY")
+            rating_text = await rating_el.text_content() if rating_el else None
+            if rating_text:
+                match_rating = re.search(r"[\d.]+", rating_text)
+                rating = float(match_rating.group()) if match_rating else 0.0
+                if rating < MIN_RATING:
+                    print(f"🚫 별점 낮음: {rating}")
+                    continue
+
+            # 상세 페이지 이동 후 ID 추출
+            click_target = await item.query_selector("div.place_bluelink")
+            if click_target:
+                await click_target.click()
+                await page.wait_for_timeout(1500)
+                detail_url = page.url
+                match = re.search(r'/place/(\d+)', detail_url)
+                if match:
+                    place_id = match.group(1)
+                    print(f"✅ {len(results) + 1}번째 장소 ID: {place_id}")
+                    results.append({
+                        "id": place_id,
+                        "name": place_name,
+                        "category": category,
+                        "review_count": review_count,
+                        "rating": rating,
+                    })
+                else:
+                    print("❌ place_id 추출 실패")
+
+        except Exception as e:
+            print(f"[ERROR] 항목 처리 중 오류: {e}")
+            continue

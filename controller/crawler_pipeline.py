@@ -8,7 +8,7 @@ from storage.save_data import save_place_info_csv, save_reviews_csv, save_failed
 TARGET_TXT_PATH = "data/target_adm_dong_codes.txt" # 크롤링할 동의 행정동코드 목록
 ADM_DONG_CSV_PATH = "data/adm_dong_list.csv" # 행정동 csv 파일
 MAX_PLACES = 30
-MAX_TABS = 5
+MAX_TABS = 4
 
 # 크롤링 파이프라인 실행
 async def run():
@@ -49,8 +49,6 @@ async def run():
                     for place in places
                 ]
                 results = await asyncio.gather(*tasks)
-                print(f"✅ {keyword} 크롤링 완료 - {len(results)}개 수집됨")
-
             except asyncio.TimeoutError:
                 print(f"[ERROR] Timeout - {keyword}")
             except Exception as e:

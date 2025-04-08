@@ -4,7 +4,7 @@ from playwright.async_api import async_playwright
 from service.place_data_collector import crawl_reviews
 from storage.save_data import save_reviews_csv
 
-INPUT_PATH = "data/review_targets.csv"  # CSV 파일: pname, pid, adm_dong_code 컬럼
+INPUT_PATH = "data/failed_places.csv"  # CSV 파일: pname, pid, adm_dong_code 컬럼
 
 async def only_review_crawling_batch(input_path):
     # CSV 파일 로드

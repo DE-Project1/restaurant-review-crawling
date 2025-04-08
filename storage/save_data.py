@@ -33,8 +33,8 @@ def save_reviews_csv(reviews: list[dict], adm_dong_code):
             writer.writeheader()
         writer.writerows([{k: v for k, v in r.items() if k in REVIEW_FIELDS} for r in reviews])
 
-def save_failed_case(pname, pid, adm_dong_code, file_path="data/failed_reviews.csv"):
-    fieldnames = ["pname", "pid", "adm_dong_code"]
+def save_failed_case(pname, pid, adm_dong_code, file_path="data/failed_places.csv"):
+    fieldnames = ["adm_dong_code", "pname", "pid"]
     try:
         file_exists = False
         try:
@@ -47,6 +47,6 @@ def save_failed_case(pname, pid, adm_dong_code, file_path="data/failed_reviews.c
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
-            writer.writerow({"pname": pname, "pid": pid, "adm_dong_code": adm_dong_code})
+            writer.writerow({"adm_dong_code": adm_dong_code, "pname": pname, "pid": pid})
     except Exception as e:
         print(f"[ERROR] 실패 기록 저장 중 예외 발생: {e}")
