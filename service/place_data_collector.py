@@ -2,6 +2,7 @@ import re
 from datetime import datetime
 import random
 
+# 영업시간 파싱
 async def parse_opening_hours(page):
     try:
         schedule_blocks = await page.query_selector_all('div.w9QyJ')
@@ -23,7 +24,7 @@ async def parse_opening_hours(page):
         if "매일" in weekly_dict:
             return weekly_dict["매일"]
 
-        # 요일 구성일 경우 월~일 순으로 정렬
+        # 요일 구성일 경우 월~일 순으로 정렬해 문자열로 병합
         KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
         sorted_hours = [weekly_dict[day] for day in KOR_WEEKDAYS if day in weekly_dict]
         return " ".join(sorted_hours)
@@ -32,6 +33,7 @@ async def parse_opening_hours(page):
         print(f"Error parsing opening hours: {e}")
         return "N/A"
 
+# 장소 상세 정보 수집
 async def crawl_place_info(page, place_id, adm_dong_code):
     url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
     await page.goto(url)
@@ -39,30 +41,30 @@ async def crawl_place_info(page, place_id, adm_dong_code):
     info = {}
 
     try:
+        # 상호명, 카테고리, 주소
         name_el = await page.query_selector('span.GHAhO')
         category_el = await page.query_selector('span.lnJFt')
         address_el = await page.query_selector('span.LDgIH')
 
-        # 🔽 영업시간 영역 클릭 (펼쳐보기)
+        # 영업시간 클릭해 펼치기
         toggle_el = await page.query_selector('a.gKP9i[aria-expanded="false"]')
         if toggle_el:
             await toggle_el.click()
-            await page.wait_for_timeout(500)  # 약간 대기
+            await page.wait_for_timeout(400)  # 약간 대기
 
+        # 서비스
         service_el = await page.query_selector('div.xPvPE')
 
-        # ⬇️ 별점
+        # 별점
         rating_el = await page.query_selector('span.PXMot.LXIwF')
         rating_text = await rating_el.text_content() if rating_el else None
         naver_rating = re.search(r"[\d.]+", rating_text).group() if rating_text else "N/A"
 
-        # ⬇️ 리뷰 수
+        # 방문자 리뷰 수, 블로그 리뷰 수
         visitor_review_el = await page.query_selector('a[href*="/review/visitor"]')
         blog_review_el = await page.query_selector('a[href*="/review/ugc"]')
-
         visitor_review_text = await visitor_review_el.text_content() if visitor_review_el else ""
         blog_review_text = await blog_review_el.text_content() if blog_review_el else ""
-
         visitor_review_count = int(re.sub(r"[^\d]", "", visitor_review_text)) if visitor_review_text else 0
         blog_review_count = int(re.sub(r"[^\d]", "", blog_review_text)) if blog_review_text else 0
         if isinstance(blog_review_count, tuple):
@@ -71,13 +73,12 @@ async def crawl_place_info(page, place_id, adm_dong_code):
         # 뱃지
         badge_els = await page.query_selector_all('div.XtBbS')
         badges = []
-
         for el in badge_els:
             text = await el.text_content()
             if text:
                 badges.append(text.strip())
 
-        # ⬇️ 수집 시각
+        # 수집 시각
         crawled_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         info["place_id"] = place_id
@@ -99,17 +100,15 @@ async def crawl_place_info(page, place_id, adm_dong_code):
 
     return info
 
-
+# 리뷰 크롤링
 async def crawl_reviews(page, place_id, place_name):
     url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
     await page.goto(url)
-    await page.wait_for_timeout(random.randint(1500, 2000))
-    
-    # 스크롤 기반 자동 로딩 방식
-    MAX_REVIEWS = 100
+    await page.wait_for_timeout(random.randint(1400, 1600))
 
-    # 리뷰 최대 로딩 유도
-    for _ in range(50):  # 더 많은 반복 허용
+    # 스크롤/더보기 버튼 통해 최대한 리뷰 로딩 (최대 100개)
+    MAX_REVIEWS = 100
+    for _ in range(30): # 더보기 버튼 클릭 최대 횟수
         review_items = await page.query_selector_all("li.place_apply_pui")
         if len(review_items) >= MAX_REVIEWS:
             break
@@ -117,17 +116,22 @@ async def crawl_reviews(page, place_id, place_name):
         await page.mouse.wheel(0, 5000)  # 하단까지 스크롤
         await page.wait_for_timeout(random.randint(800, 1200))
 
-        more_btn = await page.query_selector("a.fvwqf")
+        more_btn = await page.query_selector("a.fvwqf") # 더보기 버튼
         if more_btn:
             await more_btn.click()
-            await page.wait_for_timeout(random.randint(1000, 1500))  # 대기 시간 증가
+            await page.wait_for_timeout(random.randint(1000, 1200))  # 대기 시간 증가
         else:
             break
 
-    await page.wait_for_timeout(1500)
+    await page.wait_for_timeout(1200)
 
     review_items = await page.query_selector_all("li.place_apply_pui")
-    print(f"[{place_name}] 리뷰 수집 대상: {len(review_items)}개")
+
+    if len(review_items) < MAX_REVIEWS:
+        print(f"[{place_name}] 리뷰 수 부족({review_items}개), 크롤링 생략")
+        return None
+    else:
+        print(f"[{place_name}] 리뷰 수집 대상: {len(review_items)}개")
 
     result = []
 
@@ -151,21 +155,15 @@ async def crawl_reviews(page, place_id, place_name):
                     y, mth, d = m.groups()
                     date = f"{int(y):04d}-{int(mth):02d}-{int(d):02d}"
 
-            print("✅ nickname:", nickname)
-            print("✅ content:", content)
-            print("✅ date:", date)
-
             # 방문 상황 키워드(점심, 데이트, 바로 입장 등)
             situation_els = await r.query_selector_all("a.pui__uqSlGl > span.pui__V8F9nN")
             situations = [await el.text_content() for el in situation_els]
             situations_str = ", ".join([s.strip() for s in situations])
-            print("✅ situations:", situations_str)
 
             #  리뷰 키워드(맛, 분위기 등)
             keyword_els = await r.query_selector_all("div.pui__HLNvmI > span.pui__jhpEyP")
             keywords = [await el.text_content() for el in keyword_els]
             keywords_str = ", ".join([k.strip() for k in keywords])
-            print("✅ keywords:", keywords_str)
 
             # 리뷰 개수 및 방문 차수 추출
             review_count_el = await r.query_selector("div.pui__RuLAax > span:nth-child(1)")
@@ -178,7 +176,7 @@ async def crawl_reviews(page, place_id, place_name):
             # 방문 차수: "1번째 방문" → 1
             visit_count = re.sub(r"[^\d]", "", visit_count)
 
-            result.append({
+            review_data = {
                 "place_id": place_id,
                 "nickname": nickname.strip(),
                 "content": content.strip(),
@@ -187,17 +185,19 @@ async def crawl_reviews(page, place_id, place_name):
                 "keywords": keywords_str,
                 "review_count": review_count,
                 "visit_count": visit_count
-            })
+            }
+            print(f"수집 완료: {review_data}")
+            result.append(review_data)
         except Exception as e:
             print(f"[{place_id}] Error parsing review: {e}")
     return result
 
-
-async def collect_place_data(page, place_name: str, place_id: int, adm_dong_code):
+# 상세 정보 수집
+async def collect_place_info_and_reviews(page, place_name: str, place_id: int, adm_dong_code):
     reviews = await crawl_reviews(page, place_id, place_name)
-    if len(reviews) < 100:
-        print(f"[{place_name}] 리뷰 수 부족({len(reviews)}개), 크롤링 생략")
+    if reviews is None:
         return None, None
 
+    # 장소 상세 크롤링 진행
     info = await crawl_place_info(page, place_id, adm_dong_code)
     return info, reviews
