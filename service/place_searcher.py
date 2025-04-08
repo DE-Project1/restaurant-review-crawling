@@ -40,7 +40,7 @@ MIN_RATING = 4.1        # 최소 별점 기준
 async def fetch_places(district: str, max_places: int) -> List[Dict]:
     # 특정 지역에서 조건을 만족하는 장소 최대 max_places개까지 수
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
         page = await context.new_page()
         
