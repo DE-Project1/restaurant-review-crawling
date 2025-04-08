@@ -21,7 +21,7 @@ async def only_review_crawling_batch(input_path):
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
         )
 
-        for pname, pid, adm_dong_code in targets:
+        for adm_dong_code, pname, pid in targets:
             page = await context.new_page()
             try:
                 print(f"🔍 리뷰 수집 시작: {pname} ({pid})")
