@@ -40,8 +40,12 @@ MIN_RATING = 4.1        # 최소 별점 기준
 async def fetch_places(district: str, max_places: int) -> List[Dict]:
     # 특정 지역에서 조건을 만족하는 장소 최대 max_places개까지 수
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context()
+        browser = await p.chromium.launch(headless=False, args=["--window-size=400,300"])
+        context = await browser.new_context(
+            viewport={"width": 400, "height": 800},
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
+
         page = await context.new_page()
         
         search_word = district + " 맛집"

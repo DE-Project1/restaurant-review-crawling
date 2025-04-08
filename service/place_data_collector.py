@@ -146,11 +146,11 @@ async def crawl_reviews(page, place_id, place_name):
                 await page.wait_for_timeout(1000)
 
                 # 더보기 클릭 후 리뷰 수가 늘어났는지 확인
-                for _ in range(5):  # 최대 5회 재시도
+                for _ in range(2):  # 최대 2회 재시도
                     new_items = await page.query_selector_all("li.place_apply_pui")
                     if len(new_items) > prev_count:
                         break
-                    await page.wait_for_timeout(30000) # 30초 대기
+                    await page.wait_for_timeout(60000) # 1분 대기
             except Exception as e:
                 print(f"⚠️ 더보기 클릭 실패: {e}")
                 break
