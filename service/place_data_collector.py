@@ -157,7 +157,7 @@ async def crawl_reviews(page, place_id, place_name):
         else:
             break
 
-    await page.wait_for_timeout(1000)
+    await page.wait_for_timeout(2000)
 
     review_items = await page.query_selector_all("li.place_apply_pui")
 

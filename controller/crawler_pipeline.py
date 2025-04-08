@@ -72,14 +72,13 @@ async def collect_place_if_valid(context, adm_dong_code, place, sema):
                 print(f"⚠️ 조건 불충족: {pname} ({pid})")
                 return False
 
-            save_place_info_csv(info, adm_dong_code)
-            print(f"✅ 장소 정보 저장 완료: {pname} ({pid})")
-
-            # 리뷰 크롤링은 독립적으로 실행
+            # 리뷰 크롤링 실행
             review_task = crawl_reviews(page, pid, pname)
             reviews = await asyncio.wait_for(review_task, timeout=120)
 
             if reviews:
+                save_place_info_csv(info, adm_dong_code)
+                print(f"✅ 장소 정보 저장 완료: {pname} ({pid})")
                 save_reviews_csv(reviews, adm_dong_code)
                 print(f"✅ 리뷰 저장 완료: {pname} | 리뷰 수: {len(reviews)}")
             else:
