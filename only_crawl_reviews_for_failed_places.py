@@ -9,7 +9,8 @@ INPUT_DIR = "data/failed_places"
 OUTPUT_DIR = "data/failed_places"
 
 async def only_review_crawling_batch():
-    files = ["failed_places_1171055000.csv"]  # 또는 os.listdir(INPUT_DIR)
+    adm_dong_code = 171055000 # 이것을 수정하기
+    files = [f"failed_places_{adm_dong_code}.csv"]  # 또는 os.listdir(INPUT_DIR)
 
     if not files:
         print("❌ 처리할 실패 파일이 없습니다.")
