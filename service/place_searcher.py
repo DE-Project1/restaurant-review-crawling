@@ -33,7 +33,7 @@ ACCEPTED_CATEGORIES = [
     "해물,생선요리", "일식,초밥뷔페", "해산물뷔페"
 ]
 
-MIN_REVIEW_COUNT = 110  # 방문자 리뷰 안정선
+MIN_REVIEW_COUNT = 140  # 방문자 리뷰 안정선
 MIN_RATING = 4.1        # 최소 별점 기준
 
 # 장소 리스트 크롤링 함수

@@ -13,9 +13,6 @@ REVIEW_FIELDS = [
     "situations", "keywords", "review_count", "visit_count"
 ]
 
-os.makedirs(PLACE_INFO_DIR, exist_ok=True)
-os.makedirs(PLACE_REVIEW_DIR, exist_ok=True)
-
 def save_place_info_csv(info: dict, adm_dong_code):
     path = os.path.join(PLACE_INFO_DIR, f"place_info_{adm_dong_code}.csv")
     file_empty = not os.path.exists(path) or os.path.getsize(path) == 0
@@ -35,3 +32,21 @@ def save_reviews_csv(reviews: list[dict], adm_dong_code):
         if file_empty:
             writer.writeheader()
         writer.writerows([{k: v for k, v in r.items() if k in REVIEW_FIELDS} for r in reviews])
+
+def save_failed_case(pname, pid, adm_dong_code, file_path="data/failed_reviews.csv"):
+    fieldnames = ["pname", "pid", "adm_dong_code"]
+    try:
+        file_exists = False
+        try:
+            with open(file_path, 'r', encoding='utf-8-sig'):
+                file_exists = True
+        except FileNotFoundError:
+            pass
+
+        with open(file_path, 'a', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow({"pname": pname, "pid": pid, "adm_dong_code": adm_dong_code})
+    except Exception as e:
+        print(f"[ERROR] 실패 기록 저장 중 예외 발생: {e}")

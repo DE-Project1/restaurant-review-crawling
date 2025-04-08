@@ -2,12 +2,13 @@ import asyncio
 import csv
 from playwright.async_api import async_playwright
 from service.place_searcher import fetch_places
-from service.place_data_collector import collect_place_info_and_reviews
-from storage.save_data import save_place_info_csv, save_reviews_csv
+from service.place_data_collector import crawl_place_info, crawl_reviews
+from storage.save_data import save_place_info_csv, save_reviews_csv, save_failed_case
 
 TARGET_TXT_PATH = "data/target_adm_dong_codes.txt" # 크롤링할 동의 행정동코드 목록
 ADM_DONG_CSV_PATH = "data/adm_dong_list.csv" # 행정동 csv 파일
-MAX_PLACES = 25
+MAX_PLACES = 30
+MAX_TABS = 5
 
 # 크롤링 파이프라인 실행
 async def run():
@@ -25,7 +26,7 @@ async def run():
                 adm_dong_data.append(row)
 
     total = len(adm_dong_data) # 크롤링 대상 동 수
-    sema = asyncio.Semaphore(7) # 동시에 띄울 최대 탭 수를 7로 설정
+    sema = asyncio.Semaphore(MAX_TABS) # 동시에 띄울 최대 탭 수를 7로 설정
 
     # 비동기 크롤링 진행
     async with async_playwright() as p:
@@ -48,8 +49,7 @@ async def run():
                     for place in places
                 ]
                 results = await asyncio.gather(*tasks)
-                success = sum(results[:MAX_PLACES])  # 최대 25개까지만 반영
-                print(f"✅ {keyword} 크롤링 완료 - {success}/25 수집됨")
+                print(f"✅ {keyword} 크롤링 완료 - {len(results)}개 수집됨")
 
             except asyncio.TimeoutError:
                 print(f"[ERROR] Timeout - {keyword}")
@@ -66,24 +66,36 @@ async def collect_place_if_valid(context, adm_dong_code, place, sema):
         pid = place['id']
         try:
             print(f"📌 검증 시작: {pname} ({pid})")
-            info, reviews = await asyncio.wait_for(
-                collect_place_info_and_reviews(page, pname, pid, adm_dong_code),
+            info = await asyncio.wait_for(
+                crawl_place_info(page, pid, adm_dong_code),
                 timeout=120
             )
-            if info is None or reviews is None:
-                print(f"⚠️ 조건 불충족: {pname}")
+            if info is None:
+                print(f"⚠️ 조건 불충족: {pname} ({pid})")
                 return False
 
             save_place_info_csv(info, adm_dong_code)
-            save_reviews_csv(reviews, adm_dong_code)
-            print(f"✅ 저장 완료: {pname} | 리뷰 수: {len(reviews)}")
+            print(f"✅ 장소 정보 저장 완료: {pname} ({pid})")
+
+            # 리뷰 크롤링은 독립적으로 실행
+            review_task = crawl_reviews(page, pid, pname)
+            reviews = await asyncio.wait_for(review_task, timeout=120)
+
+            if reviews:
+                save_reviews_csv(reviews, adm_dong_code)
+                print(f"✅ 리뷰 저장 완료: {pname} | 리뷰 수: {len(reviews)}")
+            else:
+                print(f"⚠️ 리뷰 없음: {pname}")
+
             return True
 
         except asyncio.TimeoutError:
             print(f"[ERROR] Timeout - {pname} ({pid})")
+            save_failed_case(pname, pid, adm_dong_code)
             return False
         except Exception as e:
             print(f"[ERROR] 예외 발생 - {pname} ({pid}): {e}")
+            save_failed_case(pname, pid, adm_dong_code)
             return False
         finally:
             await page.close()
