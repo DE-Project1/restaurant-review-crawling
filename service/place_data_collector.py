@@ -2,6 +2,8 @@ import re
 from datetime import datetime
 import random
 
+MAX_REVIEWS = 100
+
 # 영업시간 파싱
 async def parse_opening_hours(page):
     try:
@@ -33,10 +35,29 @@ async def parse_opening_hours(page):
         print(f"Error parsing opening hours: {e}")
         return "N/A"
 
+
 # 장소 상세 정보 수집
 async def crawl_place_info(page, place_id, adm_dong_code):
+
+    # Step 1: 리뷰 수 먼저 체크
+    review_url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
+    await page.goto(review_url)
+    await page.wait_for_timeout(random.randint(1200, 1600))
+
+    review_header = await page.query_selector('div.place_section_header_title')
+    if review_header:
+        review_html = await review_header.inner_html()
+        match = re.search(r'<em class="place_section_count">(\d+)</em>', review_html)
+        if match:
+            total_reviews = int(match.group(1))
+            if total_reviews < MAX_REVIEWS:
+                print(f"❌ 리뷰 수 부족: {total_reviews}개 → 수집 제외")
+                return None
+
+    # Step 2: 정상 리뷰 수면 홈 페이지로 이동
     url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
     await page.goto(url)
+    await page.wait_for_timeout(random.randint(1200, 1600))
 
     info = {}
 
@@ -108,8 +129,7 @@ async def crawl_reviews(page, place_id, place_name):
     await page.goto(url)
     await page.wait_for_timeout(random.randint(1400, 1600))
 
-    # 스크롤/더보기 버튼 통해 최대한 리뷰 로딩 (최대 100개)
-    MAX_REVIEWS = 100
+    # 스크롤/더보기 버튼 통해 최대한 리뷰 로딩 (최대 MAX_REVIEWS개)
     for _ in range(30): # 더보기 버튼 클릭 최대 횟수
         review_items = await page.query_selector_all("li.place_apply_pui")
         if len(review_items) >= MAX_REVIEWS:
@@ -126,7 +146,7 @@ async def crawl_reviews(page, place_id, place_name):
                 await page.wait_for_timeout(1000)
 
                 # 더보기 클릭 후 리뷰 수가 늘어났는지 확인
-                for _ in range(10):  # 최대 5회 재시도
+                for _ in range(5):  # 최대 5회 재시도
                     new_items = await page.query_selector_all("li.place_apply_pui")
                     if len(new_items) > prev_count:
                         break
