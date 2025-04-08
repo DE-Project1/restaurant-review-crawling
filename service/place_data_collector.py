@@ -50,7 +50,7 @@ async def crawl_place_info(page, place_id, adm_dong_code):
         toggle_el = await page.query_selector('a.gKP9i[aria-expanded="false"]')
         if toggle_el:
             await toggle_el.click()
-            await page.wait_for_timeout(400)  # 약간 대기
+            await page.wait_for_timeout(500)  # 약간 대기
 
         # 서비스
         service_el = await page.query_selector('div.xPvPE')
@@ -114,7 +114,7 @@ async def crawl_reviews(page, place_id, place_name):
             break
 
         await page.mouse.wheel(0, 5000)  # 하단까지 스크롤
-        await page.wait_for_timeout(random.randint(800, 1200))
+        await page.wait_for_timeout(random.randint(1200, 1500))
 
         more_btn = await page.query_selector("a.fvwqf") # 더보기 버튼
         if more_btn:

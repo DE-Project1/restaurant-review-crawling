@@ -19,7 +19,7 @@ ACCEPTED_CATEGORIES = [
     "중식당", "양꼬치", "마라탕", "게요리", "딤섬", "중식", "중화요리",
     # 양식 계열
     "브런치", "스테이크,립", "피자", "파스타", "패밀리레스토랑",
-    "경양식", "스파게티", "브런치카페", "양식", "독일음식", "스파게티,파스타전문"
+    "경양식", "스파게티", "브런치카페", "양식", "독일음식", "스파게티,파스타전문",
     # 세계 음식
     "이탈리아음식", "스페인음식", "프랑스음식", "터키음식", "아프리카음식",
     "멕시코,남미음식", "베트남음식", "태국음식", "인도음식", "아시아음식",
@@ -131,7 +131,7 @@ async def fetch_places(district: str, max_places: int) -> List[Dict]:
                         click_target = await item.query_selector("div.place_bluelink")
                         if click_target:
                             await click_target.click()
-                            await page.wait_for_timeout(1000)
+                            await page.wait_for_timeout(1500)
                             detail_url = page.url
                             match = re.search(r'/place/(\d+)', detail_url)
                             if match:
