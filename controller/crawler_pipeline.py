@@ -42,16 +42,15 @@ async def run():
             print(f"\n[{idx}/{total}] {keyword} 크롤링 시작...")
 
             try:
-                places = await fetch_places(keyword, MAX_PLACES)
-                success = 0
-
-                for place in places:
-                    if success >= MAX_PLACES:
-                        break
-                    result = await collect_place_if_valid(context, row["adm_dong_code"], place, sema)
-                    if result:
-                        success += 1
+                places = await fetch_places(keyword, MAX_PLACES * 2)  # 여유 있게 받아둠
+                tasks = [
+                    collect_place_if_valid(context, row["adm_dong_code"], place, sema)
+                    for place in places
+                ]
+                results = await asyncio.gather(*tasks)
+                success = sum(results[:MAX_PLACES])  # 최대 25개까지만 반영
                 print(f"✅ {keyword} 크롤링 완료 - {success}/25 수집됨")
+
             except asyncio.TimeoutError:
                 print(f"[ERROR] Timeout - {keyword}")
             except Exception as e:
@@ -75,8 +74,8 @@ async def collect_place_if_valid(context, adm_dong_code, place, sema):
                 print(f"⚠️ 조건 불충족: {pname}")
                 return False
 
-            save_place_info_csv(info)
-            save_reviews_csv(reviews)
+            save_place_info_csv(info, adm_dong_code)
+            save_reviews_csv(reviews, adm_dong_code)
             print(f"✅ 저장 완료: {pname} | 리뷰 수: {len(reviews)}")
             return True
 
