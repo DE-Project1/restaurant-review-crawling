@@ -7,7 +7,7 @@ from storage.save_data import save_place_info_csv, save_reviews_csv, save_failed
 
 TARGET_TXT_PATH = "data/target_adm_dong_codes.txt" # 크롤링할 동의 행정동코드 목록
 ADM_DONG_CSV_PATH = "data/adm_dong_list.csv" # 행정동 csv 파일
-MAX_PLACES = 30
+MAX_PLACES = 45
 MAX_TABS = 4
 
 # 크롤링 파이프라인 실행
@@ -44,7 +44,7 @@ async def run():
             print(f"\n[{idx}/{total}] {keyword} 크롤링 시작...")
 
             try:
-                places = await fetch_places(keyword, MAX_PLACES * 2)  # 여유 있게 받아둠
+                places = await fetch_places(keyword, MAX_PLACES)  # 여유 있게 받아둠
                 tasks = [
                     collect_place_if_valid(context, row["adm_dong_code"], place, sema)
                     for place in places
