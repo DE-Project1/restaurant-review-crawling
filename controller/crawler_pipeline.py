@@ -44,7 +44,7 @@ async def run():
             print(f"\n[{idx}/{total}] {keyword} 크롤링 시작...")
 
             try:
-                places = await fetch_places(keyword, MAX_PLACES * 2)  # 여유 있게 받아둠
+                places = await fetch_places(keyword, 52)  # 여유 있게 받아둠
                 tasks = [
                     collect_place_if_valid(context, row["adm_dong_code"], place, sema)
                     for place in places
