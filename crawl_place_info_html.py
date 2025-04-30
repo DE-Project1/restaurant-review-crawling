@@ -37,7 +37,7 @@ async def scroll_to_bottom(container: Locator, max_scrolls: int):
     else:
         print(f"  - Reached max scrolls ({max_scrolls}).")
 
-async def scroll_page_to_bottom(page: Page, max_scrolls=20):
+async def scroll_page_to_bottom(page: Page, max_scrolls=6):
     for i in range(max_scrolls):
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         await asyncio.sleep(0.5)
@@ -191,16 +191,3 @@ async def search_and_scrape_raw_html(query: str, max_places: int):
             await browser.close()
 
     return results
-
-async def main():
-    # # ① 검색어 기반
-    # search_results = await search_and_scrape_raw_html("강남역 맛집", max_places=5)
-    # print(f"Search-based: Found {len(search_results)} places.")
-
-    # ② 직접 지정한 place_id 기반 (예: CSV 대체)
-    place_ids = ["37637684", "1185221694"]  # ← 여기에 직접 지정하거나 CSV에서 읽도록 변경 가능
-    id_results = await crawl_from_place_ids(place_ids)
-    print(f"ID-based: Found {len(id_results)} places.")
-
-if __name__ == "__main__":
-    asyncio.run(main())
