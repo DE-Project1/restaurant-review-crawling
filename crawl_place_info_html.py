@@ -4,8 +4,9 @@ import random
 import os
 from playwright.async_api import async_playwright, Page, Locator
 
+CONCURRENT_PAGES = 4  # 동시 탭 개수
 MAX_SEARCH_SCROLLS = 20
-MAX_REVIEW_CLICKS = 20
+MAX_REVIEW_CLICKS = 11
 MAX_REVIEWS = 100
 DEFAULT_TIMEOUT = 15000
 
@@ -43,7 +44,7 @@ async def scroll_page_to_bottom(page: Page, max_scrolls=6):
         await asyncio.sleep(0.5)
 
 async def load_all_reviews(page: Page):
-    for _ in range(30):
+    for _ in range(MAX_REVIEW_CLICKS):
         review_items = await page.query_selector_all("li.place_apply_pui")
         if len(review_items) >= MAX_REVIEWS:
             break
@@ -85,7 +86,7 @@ async def scrape_place_details_html(page: Page, place_id: str) -> dict | None:
             try:
                 await target_toggle.scroll_into_view_if_needed()
                 await page.wait_for_timeout(300)
-                await target_toggle.click(timeout=3000)
+                await target_toggle.click(timeout=1000)
             except Exception as e:
                 print(f"⚠️ 영업중 토글 클릭 실패: {e}")
                 try:
@@ -123,28 +124,67 @@ async def scrape_place_details_html(page: Page, place_id: str) -> dict | None:
         print(f"  - Error: {e}")
         return None
 
+async def crawl_place_ids_worker(page, queue, results):
+    while True:
+        place_id = await queue.get()
+        if place_id is None:
+            break  # 종료 신호
+
+        html = await scrape_place_details_html(page, place_id)
+        if html:
+            results.append(html)
+
+        queue.task_done()
+
 async def crawl_from_place_ids(place_ids: list[str]):
     results = []
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False, args=["--window-size=1200,800"])
-        context = await browser.new_context()
-        page = await context.new_page()
 
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False, args=["--window-size=400,300"])
+
+        context = await browser.new_context(
+            viewport={"width": 400, "height": 800},
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
+
+        queue = asyncio.Queue()
+
+        # place_id 넣기
         for place_id in place_ids:
-            html = await scrape_place_details_html(page, place_id)
-            if html:
-                results.append(html)
+            queue.put_nowait(place_id)
+
+        # 종료 신호용 None 추가 (탭 수만큼)
+        for _ in range(CONCURRENT_PAGES):
+            queue.put_nowait(None)
+
+        # 병렬로 페이지 열기 (탭 열기)
+        tasks = []
+        for _ in range(CONCURRENT_PAGES):
+            page = await context.new_page()
+            task = asyncio.create_task(crawl_place_ids_worker(page, queue, results))
+            tasks.append(task)
+
+        await queue.join()
+
+        # 종료
+        for task in tasks:
+            await task
 
         await browser.close()
+
     return results
+
 
 async def search_and_scrape_raw_html(query: str, max_places: int):
     results = []
     scraped_ids = set()
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False, args=["--window-size=1200,800"])
-        context = await browser.new_context()
+        browser = await p.chromium.launch(headless=False, args=["--window-size=400,300"])
+        context = await browser.new_context(
+            viewport={"width": 400, "height": 800},
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
         page = await context.new_page()
 
         try:
