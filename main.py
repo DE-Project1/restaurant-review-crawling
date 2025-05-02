@@ -7,11 +7,15 @@ from crawl_place_info_html import crawl_from_place_ids
 
 RAW_DIR = "raw_data"
 PLACE_CSV_DIR = "data/place_info"
+ADM_DONG_CODES = ["1111", "1114", "1120"]
 
+from itertools import chain
 async def crawl_missing_place_ids():
     os.makedirs(RAW_DIR, exist_ok=True)
 
-    csv_files = glob.glob(f"{PLACE_CSV_DIR}/place_info_*.csv")
+    csv_files = list(chain.from_iterable(
+        glob.glob(f"{PLACE_CSV_DIR}/place_info_{dong_code}*.csv") for dong_code in ADM_DONG_CODES
+    ))
 
     for csv_path in csv_files:
         global_start = time.time()
@@ -48,6 +52,7 @@ async def crawl_missing_place_ids():
                 f.write(data["info_html"] or "")
                 f.write("\n\n===== REVIEWS =====\n")
                 f.write(data["reviews_html"] or "")
+
         global_elapsed = time.time() - global_start
         print(f"✅ {adm_dong_code}: 저장 완료 ({len(results)}개) - 전체 소요시간: {global_elapsed:.1f} sec")
 
