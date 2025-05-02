@@ -10,7 +10,7 @@ CONCURRENT_PAGES = 4  # 동시 탭 개수
 MAX_SEARCH_SCROLLS = 20
 MAX_REVIEW_CLICKS = 11
 MAX_REVIEWS = 100
-DEFAULT_TIMEOUT = 15000
+DEFAULT_TIMEOUT = 15000  # 15초
 
 def log(status, place_id, adm_dong_code=None, extra=None):
     now = datetime.now().strftime("%H:%M:%S")
@@ -21,6 +21,7 @@ def log(status, place_id, adm_dong_code=None, extra=None):
         msg += f" - {extra}"
     print(msg)
 
+# ========== 🔵 유틸리티 함수 추가 ==========
 async def safe_click(locator: Locator | None, timeout=DEFAULT_TIMEOUT):
     if locator:
         try:
@@ -29,6 +30,15 @@ async def safe_click(locator: Locator | None, timeout=DEFAULT_TIMEOUT):
         except Exception as e:
             print(f"[WARNING] Could not click element. Error: {e}")
     return False
+
+async def safe_page_content(page: Page, timeout=10):
+    try:
+        return await asyncio.wait_for(page.content(), timeout=timeout)
+    except asyncio.TimeoutError:
+        print("❌ page.content() timeout")
+        return None
+
+# ==========================================
 
 async def scroll_to_bottom(container: Locator, max_scrolls: int):
     if not await container.is_visible():
@@ -49,7 +59,7 @@ async def scroll_to_bottom(container: Locator, max_scrolls: int):
         print(f"  - Reached max scrolls ({max_scrolls}).")
 
 async def scroll_page_to_bottom(page: Page, max_scrolls=6):
-    for i in range(max_scrolls):
+    for _ in range(max_scrolls):
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         await asyncio.sleep(0.5)
 
@@ -88,8 +98,7 @@ async def scrape_place_details_html(page: Page, place_id: str) -> dict | None:
     try:
         home_url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
         await page.goto(home_url, timeout=DEFAULT_TIMEOUT)
-        await page.wait_for_load_state('domcontentloaded')
-
+        await page.wait_for_load_state('domcontentloaded', timeout=DEFAULT_TIMEOUT)
         target_toggle = await page.query_selector(
             '//div[contains(@class, "A_cdD") and contains(., "영업")]//following::span[contains(@class, "_UCia")][1]'
         )
@@ -105,28 +114,20 @@ async def scrape_place_details_html(page: Page, place_id: str) -> dict | None:
                 except Exception as e2:
                     print(f"⚠️ 강제 클릭도 실패: {e2}")
 
-        data["home_html"] = await page.content()
+        data["home_html"] = await safe_page_content(page, timeout=10)
 
         info_url = f"https://m.place.naver.com/restaurant/{place_id}/information?entry=ple&reviewSort=recent"
         await page.goto(info_url, timeout=DEFAULT_TIMEOUT)
-        await page.wait_for_load_state('domcontentloaded')
+        await page.wait_for_load_state('domcontentloaded', timeout=DEFAULT_TIMEOUT)
         await scroll_page_to_bottom(page, MAX_SEARCH_SCROLLS)
-        data["info_html"] = await page.content()
+        data["info_html"] = await safe_page_content(page, timeout=10)
 
         review_url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
         await page.goto(review_url, timeout=DEFAULT_TIMEOUT)
-        await page.wait_for_load_state('domcontentloaded')
+        await page.wait_for_load_state('domcontentloaded', timeout=DEFAULT_TIMEOUT)
         await load_all_reviews(page)
-        data["reviews_html"] = await page.content()
+        data["reviews_html"] = await safe_page_content(page, timeout=15)
 
-        os.makedirs("raw_data", exist_ok=True)
-        with open(f"raw_data/raw_data_{place_id}.txt", "w", encoding="utf-8") as f:
-            f.write("===== HOME =====\n")
-            f.write(data["home_html"] or "")
-            f.write("\n\n===== INFO =====\n")
-            f.write(data["info_html"] or "")
-            f.write("\n\n===== REVIEWS =====\n")
-            f.write(data["reviews_html"] or "")
         elapsed = time.time() - start_time
         log("SAVED", place_id, extra=f"{elapsed:.1f} sec")
         return data
@@ -135,13 +136,25 @@ async def scrape_place_details_html(page: Page, place_id: str) -> dict | None:
         log("ERROR", place_id, extra=str(e))
         return None
 
+# ========== 🔵 retry 추가 ==========
+async def scrape_with_retry(page: Page, place_id: str, retries=3):
+    for attempt in range(retries):
+        result = await scrape_place_details_html(page, place_id)
+        if result:
+            return result
+        print(f"🔁 Retry {attempt+1}/{retries} for PlaceID: {place_id}")
+        await asyncio.sleep(3)  # 재시도 간 짧은 대기
+    print(f"❌ Failed after {retries} retries for PlaceID: {place_id}")
+    return None
+# ===================================
+
 async def crawl_place_ids_worker(page, queue, results):
     while True:
         place_id = await queue.get()
         if place_id is None:
             break  # 종료 신호
 
-        html = await scrape_place_details_html(page, place_id)
+        html = await scrape_with_retry(page, place_id)
         if html:
             results.append(html)
 
@@ -152,7 +165,6 @@ async def crawl_from_place_ids(place_ids: list[str]):
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False, args=["--window-size=400,300"])
-
         context = await browser.new_context(
             viewport={"width": 400, "height": 800},
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
@@ -160,15 +172,12 @@ async def crawl_from_place_ids(place_ids: list[str]):
 
         queue = asyncio.Queue()
 
-        # place_id 넣기
         for place_id in place_ids:
             queue.put_nowait(place_id)
 
-        # 종료 신호용 None 추가 (탭 수만큼)
         for _ in range(CONCURRENT_PAGES):
             queue.put_nowait(None)
 
-        # 병렬로 페이지 열기 (탭 열기)
         tasks = []
         for _ in range(CONCURRENT_PAGES):
             page = await context.new_page()
@@ -177,68 +186,9 @@ async def crawl_from_place_ids(place_ids: list[str]):
 
         await queue.join()
 
-        # 종료
         for task in tasks:
             await task
 
         await browser.close()
-
-    return results
-
-
-async def search_and_scrape_raw_html(query: str, max_places: int):
-    results = []
-    scraped_ids = set()
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False, args=["--window-size=400,300"])
-        context = await browser.new_context(
-            viewport={"width": 400, "height": 800},
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-        )
-        page = await context.new_page()
-
-        try:
-            await page.goto(f"https://map.naver.com/p/search/{query}", timeout=DEFAULT_TIMEOUT)
-            await asyncio.sleep(2)
-
-            search_frame = page.frame(name="searchIframe")
-            if not search_frame:
-                print("Error: searchIframe not found.")
-                return []
-
-            scroll_container = search_frame.locator("div#_pcmap_list_scroll_container")
-            await scroll_to_bottom(scroll_container, MAX_SEARCH_SCROLLS)
-
-            list_items = await search_frame.locator("li.UEzoS").all()
-            print(f"Found {len(list_items)} places.")
-
-            for i, item in enumerate(list_items):
-                if len(results) >= max_places:
-                    break
-
-                click_target = item.locator("a.tzwk0").first
-                if not await safe_click(click_target):
-                    continue
-                await asyncio.sleep(1.5)
-                match = re.search(r'/place/(\d+)',  page.url)
-                place_id = match.group(1) if match else None
-
-                if not place_id:
-                    iframe = page.locator("iframe#entryIframe")
-                    src = await iframe.get_attribute('src')
-                    match = re.search(r'placeId=(\d+)', src or '')
-                    place_id = match.group(1) if match else None
-
-                if not place_id or place_id in scraped_ids:
-                    continue
-
-                html = await scrape_place_details_html(page, place_id)
-                if html:
-                    results.append(html)
-                    scraped_ids.add(place_id)
-
-        finally:
-            await browser.close()
 
     return results
