@@ -1,5 +1,6 @@
 import os
 import csv
+import time
 import glob
 import asyncio
 from crawl_place_info_html import crawl_from_place_ids
@@ -13,6 +14,7 @@ async def crawl_missing_place_ids():
     csv_files = glob.glob(f"{PLACE_CSV_DIR}/place_info_*.csv")
 
     for csv_path in csv_files:
+        global_start = time.time()
         adm_dong_code = os.path.splitext(os.path.basename(csv_path))[0].split("_")[-1]  # e.g. '11110'
 
         place_ids_to_crawl = set()
@@ -46,7 +48,8 @@ async def crawl_missing_place_ids():
                 f.write(data["info_html"] or "")
                 f.write("\n\n===== REVIEWS =====\n")
                 f.write(data["reviews_html"] or "")
-        print(f"✅ {adm_dong_code}: 저장 완료 ({len(results)}개)")
+        global_elapsed = time.time() - global_start
+        print(f"✅ {adm_dong_code}: 저장 완료 ({len(results)}개) - 전체 소요시간: {global_elapsed:.1f} sec")
 
 if __name__ == "__main__":
     asyncio.run(crawl_missing_place_ids())

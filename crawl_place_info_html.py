@@ -2,7 +2,9 @@ import asyncio
 import re
 import random
 import os
+import time
 from playwright.async_api import async_playwright, Page, Locator
+from datetime import datetime
 
 CONCURRENT_PAGES = 4  # 동시 탭 개수
 MAX_SEARCH_SCROLLS = 20
@@ -10,19 +12,27 @@ MAX_REVIEW_CLICKS = 11
 MAX_REVIEWS = 100
 DEFAULT_TIMEOUT = 15000
 
+def log(status, place_id, adm_dong_code=None, extra=None):
+    now = datetime.now().strftime("%H:%M:%S")
+    msg = f"[{now}] [{status}] PlaceID: {place_id}"
+    if adm_dong_code:
+        msg += f" (Dong: {adm_dong_code})"
+    if extra:
+        msg += f" - {extra}"
+    print(msg)
+
 async def safe_click(locator: Locator | None, timeout=DEFAULT_TIMEOUT):
     if locator:
         try:
             await locator.click(timeout=timeout)
             return True
         except Exception as e:
-            print(f"  - Warning: Could not click element. Error: {e}")
+            print(f"[WARNING] Could not click element. Error: {e}")
     return False
 
 async def scroll_to_bottom(container: Locator, max_scrolls: int):
-    print("  - Scrolling...")
     if not await container.is_visible():
-        print("  - Warning: Scroll container not visible.")
+        print("[WARNING] Scroll container not visible.")
         return
 
     previous_height = -1
@@ -50,7 +60,7 @@ async def load_all_reviews(page: Page):
             break
 
         await page.mouse.wheel(0, 5000)
-        await page.wait_for_timeout(random.randint(1200, 1500))
+        await page.wait_for_timeout(1000)
 
         prev_count = len(review_items)
         more_btn = await page.query_selector("a.fvwqf")
@@ -71,7 +81,8 @@ async def load_all_reviews(page: Page):
             break
 
 async def scrape_place_details_html(page: Page, place_id: str) -> dict | None:
-    print(f"  - Scraping HTML for place ID: {place_id}")
+    log("START", place_id)
+    start_time = time.time()
     data = {"place_id": place_id, "home_html": None, "info_html": None, "reviews_html": None}
 
     try:
@@ -116,12 +127,12 @@ async def scrape_place_details_html(page: Page, place_id: str) -> dict | None:
             f.write(data["info_html"] or "")
             f.write("\n\n===== REVIEWS =====\n")
             f.write(data["reviews_html"] or "")
-
-        print(f"  - Saved raw HTML to raw_data/raw_data_{place_id}.txt")
+        elapsed = time.time() - start_time
+        log("SAVED", place_id, extra=f"{elapsed:.1f} sec")
         return data
 
     except Exception as e:
-        print(f"  - Error: {e}")
+        log("ERROR", place_id, extra=str(e))
         return None
 
 async def crawl_place_ids_worker(page, queue, results):
