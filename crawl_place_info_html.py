@@ -112,15 +112,10 @@ async def fetch_review_page(page: Page, place_id: str):
 
 # ---- 식당 1개 크롤링 ----
 
-async def scrape_place_details_html(browser, place_id: str):
+async def scrape_place_details_html(context, place_id: str, output_path: str):
     log("START", place_id)
     start_time = time.time()
     data = {"place_id": place_id, "home_html": None, "info_html": None, "reviews_html": None}
-
-    context = await browser.new_context(
-        viewport={"width": 400, "height": 800},
-        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
-    )
 
     try:
         # 탭 열기
@@ -147,64 +142,64 @@ async def scrape_place_details_html(browser, place_id: str):
         elapsed = time.time() - start_time
         log("SAVED", place_id, extra=f"{elapsed:.1f} sec")
 
+
+        try:
+            with open(output_path, "w", encoding="utf-8-sig") as f:
+                f.write("===== HOME =====\n")
+                f.write(data["home_html"] or "")
+                f.write("\n\n===== INFO =====\n")
+                f.write(data["info_html"] or "")
+                f.write("\n\n===== REVIEWS =====\n")
+                f.write(data["reviews_html"] or "")
+        except Exception as e:
+            print(f"⚠️ 저장 실패 (PlaceID: {place_id}) - {e}")
+        finally:
+            # 페이지 닫기 (여기가 포인트)
+            await home_page.close()
+            await info_page.close()
+            await review_page.close()
+
     except Exception as e:
         log("ERROR", place_id, extra=str(e))
-
-    await context.close()
     return data
-
-# ---- Worker ----
-
-async def crawl_place_ids_worker(browser, queue, results):
-    while True:
-        place_id = await queue.get()
-        if place_id is None:
-            break
-
-        html = await scrape_place_details_html(browser, place_id)
-        if html:
-            results.append(html)
-
-        queue.task_done()
 
 # ---- Main Entry ----
 
-async def crawl_from_place_ids(place_ids: list[str]):
+from itertools import islice
+
+async def crawl_from_place_ids(place_ids: list[str], RAW_DIR, adm_dong_code):
     results = []
 
     async with async_playwright() as p:
+        place_ids = list(place_ids)
+
         browser = await p.chromium.launch(headless=False)
+        context = await browser.new_context(
+            viewport={"width": 400, "height": 800},
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+        )
 
-        queue = asyncio.Queue()
+        # 4개씩 처리
+        for i in range(0, len(place_ids), 4):
+            batch = place_ids[i:i + 4]
 
-        for place_id in place_ids:
-            queue.put_nowait(place_id)
+            tasks = []
+            for place_id in batch:
+                output_path = f"{RAW_DIR}/adc_{adm_dong_code}_place_rawdata_{place_id}.txt"
+                if os.path.exists(output_path):
+                    print(f"⏭️ 이미 파일 있음 → 스킵 (PlaceID: {place_id})")
+                    continue
+                tasks.append(scrape_place_details_html(context, place_id, output_path))
 
-        for _ in range(CONCURRENT_WORKERS):
-            queue.put_nowait(None)
+            # 동시에 실행
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        tasks = []
-        for _ in range(CONCURRENT_WORKERS):
-            task = asyncio.create_task(crawl_place_ids_worker(browser, queue, results))
-            tasks.append(task)
+            # 결과 저장
+            for result in batch_results:
+                if isinstance(result, dict):
+                    results.append(result)
 
-        try:
-            await queue.join()
-
-            if len(browser.contexts) == 0:
-                print("❌ 브라우저 창이 열려있지 않습니다. 프로그램을 재시작합니다.")
-                # 프로그램 재실행
-                subprocess.Popen([sys.executable] + sys.argv)
-                return []
-
-            for task in tasks:
-                await task
-
-        except Exception as e:
-            print("❌ 크롤링 중 오류 발생 → 재시작합니다.")
-            subprocess.Popen([sys.executable] + sys.argv)
-            return []
-
+        await context.close()
         await browser.close()
 
     return results
