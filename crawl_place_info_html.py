@@ -185,7 +185,7 @@ async def crawl_from_place_ids(place_ids: list[str], RAW_DIR, adm_dong_code):
 
             tasks = []
             for place_id in batch:
-                output_path = f"{RAW_DIR}/adc_{adm_dong_code}_place_rawdata_{place_id}.txt"
+                output_path = f"{RAW_DIR}/adc_{adm_dong_code}_place_rawdata_{place_id}.html"
                 if os.path.exists(output_path):
                     print(f"⏭️ 이미 파일 있음 → 스킵 (PlaceID: {place_id})")
                     continue

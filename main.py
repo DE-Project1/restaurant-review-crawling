@@ -31,7 +31,7 @@ async def crawl_missing_place_ids():
                 place_id = row.get("place_id")
                 if not place_id:
                     continue
-                output_path = f"{RAW_DIR}/adc_{adm_dong_code}_place_rawdata_{place_id}.txt"
+                output_path = f"{RAW_DIR}/adc_{adm_dong_code}_place_rawdata_{place_id}.html"
                 if os.path.exists(output_path):
                     continue  # 이미 있으면 skip
                 place_ids_to_crawl.add(place_id)
