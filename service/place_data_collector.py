@@ -2,62 +2,12 @@ import re
 from datetime import datetime
 import random
 
-MAX_REVIEWS = 100
-
-# 영업시간 파싱
-async def parse_opening_hours(page):
-    try:
-        schedule_blocks = await page.query_selector_all('div.w9QyJ')
-        weekly_dict = {}
-
-        for block in schedule_blocks:
-            day_el = await block.query_selector('span.i8cJw')
-            detail_el = await block.query_selector('div.H3ua4')
-
-            day = await day_el.text_content() if day_el else ""
-            detail = await detail_el.inner_text() if detail_el else ""
-
-            if day and detail:
-                day = day.strip()
-                detail = detail.replace("\n", ", ").strip()
-                weekly_dict[day] = f"{day} {detail}"
-
-        # "매일"만 있는 경우는 그대로 반환
-        if "매일" in weekly_dict:
-            return weekly_dict["매일"]
-
-        # 요일 구성일 경우 월~일 순으로 정렬해 문자열로 병합
-        KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
-        sorted_hours = [weekly_dict[day] for day in KOR_WEEKDAYS if day in weekly_dict]
-        return " ".join(sorted_hours)
-
-    except Exception as e:
-        print(f"Error parsing opening hours: {e}")
-        return "N/A"
-
-
 # 장소 상세 정보 수집
 async def crawl_place_info(page, place_id, adm_dong_code):
-
-    # Step 1: 리뷰 수 먼저 체크
-    review_url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
-    await page.goto(review_url)
-    await page.wait_for_timeout(random.randint(1200, 1600))
-
-    review_header = await page.query_selector('div.place_section_header_title')
-    if review_header:
-        review_html = await review_header.inner_html()
-        match = re.search(r'<em class="place_section_count">(\d+)</em>', review_html)
-        if match:
-            total_reviews = int(match.group(1))
-            if total_reviews < MAX_REVIEWS:
-                print(f"❌ 리뷰 수 부족: {total_reviews}개 → 수집 제외")
-                return None
-
-    # Step 2: 정상 리뷰 수면 홈 페이지로 이동
+    # 홈 페이지로 이동
     url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
     await page.goto(url)
-    await page.wait_for_timeout(random.randint(1200, 1600))
+    await page.wait_for_timeout(1000)
 
     info = {}
 
@@ -124,19 +74,35 @@ async def crawl_place_info(page, place_id, adm_dong_code):
     return info
 
 # 리뷰 크롤링
-async def crawl_reviews(page, place_id, place_name):
+async def crawl_reviews(page, place_id):
     url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
     await page.goto(url)
-    await page.wait_for_timeout(random.randint(1400, 1600))
+    await page.wait_for_timeout(1000)
+
+    # 리뷰 수 조건 먼저 체크
+    review_url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
+    await page.goto(review_url)
+    await page.wait_for_timeout(1000)
+
+    MAX_REVIEWS = 100
+    review_header = await page.query_selector('div.place_section_header_title')
+    if review_header:
+        review_html = await review_header.inner_html()
+        match = re.search(r'<em class="place_section_count">(\d+)</em>', review_html)
+        if match:
+            total_reviews = int(match.group(1))
+            if total_reviews < MAX_REVIEWS:
+                print(f"❌ 리뷰 수 부족: {total_reviews}개 → 수집 제외")
+                return Exception
 
     # 스크롤/더보기 버튼 통해 최대한 리뷰 로딩 (최대 MAX_REVIEWS개)
-    for _ in range(30): # 더보기 버튼 클릭 최대 횟수
+    for _ in range(10): # 더보기 버튼 클릭 최대 횟수
         review_items = await page.query_selector_all("li.place_apply_pui")
         if len(review_items) >= MAX_REVIEWS:
             break
 
-        await page.mouse.wheel(0, 5000)  # 하단까지 스크롤
-        await page.wait_for_timeout(random.randint(1200, 1500))
+        await page.mouse.wheel(0, 5000)
+        await page.wait_for_timeout(500)
 
         prev_count = len(review_items)
         more_btn = await page.query_selector("a.fvwqf") # 더보기 버튼
@@ -156,20 +122,18 @@ async def crawl_reviews(page, place_id, place_name):
                 break
         else:
             break
-
-    await page.wait_for_timeout(2000)
+    await page.wait_for_timeout(1000)
 
     review_items = await page.query_selector_all("li.place_apply_pui")
 
     review_count = len(review_items)
     if review_count < MAX_REVIEWS:
-        print(f"[{place_name}] 리뷰 수 부족({review_count}개), 크롤링 생략")
-        return None
+        print(f"리뷰 수 부족({review_count}개), 크롤링 생략")
+        return Exception
     else:
-        print(f"[{place_name}] 리뷰 수집 대상: {review_count}개")
+        print(f"리뷰 수집 대상: {review_count}개")
 
     result = []
-
     for r in review_items[:MAX_REVIEWS]:
         try:
             nickname_el = await r.query_selector("div.pui__JiVbY3 span.pui__uslU0d span.pui__NMi-Dp")
@@ -227,12 +191,33 @@ async def crawl_reviews(page, place_id, place_name):
             print(f"[{place_id}] Error parsing review: {e}")
     return result
 
-# # 상세 정보 수집
-# async def collect_place_info_and_reviews(page, place_name: str, place_id: int, adm_dong_code):
-#     reviews = await crawl_reviews(page, place_id, place_name)
-#     if reviews is None:
-#         return None, None
-#
-#     # 장소 상세 크롤링 진행
-#     info = await crawl_place_info(page, place_id, adm_dong_code)
-#     return info, reviews
+# 영업시간 파싱
+async def parse_opening_hours(page):
+    try:
+        schedule_blocks = await page.query_selector_all('div.w9QyJ')
+        weekly_dict = {}
+
+        for block in schedule_blocks:
+            day_el = await block.query_selector('span.i8cJw')
+            detail_el = await block.query_selector('div.H3ua4')
+
+            day = await day_el.text_content() if day_el else ""
+            detail = await detail_el.inner_text() if detail_el else ""
+
+            if day and detail:
+                day = day.strip()
+                detail = detail.replace("\n", ", ").strip()
+                weekly_dict[day] = f"{day} {detail}"
+
+        # "매일"만 있는 경우는 그대로 반환
+        if "매일" in weekly_dict:
+            return weekly_dict["매일"]
+
+        # 요일 구성일 경우 월~일 순으로 정렬해 문자열로 병합
+        KOR_WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"]
+        sorted_hours = [weekly_dict[day] for day in KOR_WEEKDAYS if day in weekly_dict]
+        return " ".join(sorted_hours)
+
+    except Exception as e:
+        print(f"Error parsing opening hours: {e}")
+        return "N/A"
