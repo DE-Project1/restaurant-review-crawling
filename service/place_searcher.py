@@ -39,17 +39,18 @@ MIN_RATING = 4.1        # 최소 별점 기준
 
 # 장소 검색 및 ID 리스트 크롤링 함수
 # 특정 지역에서 조건을 만족하는 장소 최대 max_places개까지 수집 (place_id만)
-async def search_and_fetch_place_ids(district: str, max_places: int) -> List[str]:
+async def search_and_fetch_place_ids(district_neighborhood: str, max_places: int) -> List[str]:
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False, args=["--window-size=400,800"])
         context = await browser.new_context(
             viewport={"width": 400, "height": 800},
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
         await block_unnecessary_resources(page)
         # 페이지 이동
-        search_word = district + " 맛집"
+        search_word = district_neighborhood + " 맛집"
         await page.goto(f"https://map.naver.com/p/search/{search_word}")
         await page.wait_for_timeout(2000)  # 초기 로딩 대기
         # place_ids에 장소 ID 수집
@@ -65,19 +66,18 @@ async def search_and_fetch_place_ids(district: str, max_places: int) -> List[str
                 place_items = await search_frame.query_selector_all("li.UEzoS.rTjJo")
                 print(f"✅ {current_page}페이지에서 {len(place_items)}개 장소 발견")
                 # place_items에서 장소 new_ids 얻어 place_ids에 추가
-                new_ids = await parse_places_from_items(place_items, page, max_places)
-                place_ids.extend(new_ids)
+                await parse_places_from_items(place_items, page, max_places, place_ids)
                 if len(place_ids) >= max_places:
                     break
                 # 다음 페이지 넘기기
                 next_btn = search_frame.locator('a.eUTV2:has(span.place_blind:text("다음페이지"))').first
                 if await next_btn.count() == 0:
                     print("❌ 다음페이지 버튼 못 찾음. 종료")
-                    return False
+                    break
                 # 비활성화 상태인지 확인
                 if await next_btn.get_attribute("aria-disabled") == "true":
                     print("⛔ 다음 페이지 버튼이 비활성화됨. 종료")
-                    return False
+                    break
                 # 클릭 후 대기
                 current_page += 1
                 await next_btn.click()
@@ -89,8 +89,7 @@ async def search_and_fetch_place_ids(district: str, max_places: int) -> List[str
         await browser.close()
         return place_ids
 
-async def parse_places_from_items(items, page, max_places: int) -> List[str] :
-    place_ids: List[str] = []
+async def parse_places_from_items(items, page, max_places: int, place_ids) :
     for item in items:
         if len(place_ids) >= max_places:
             break
@@ -139,4 +138,3 @@ async def parse_places_from_items(items, page, max_places: int) -> List[str] :
         except Exception as e:
             print(f"[ERROR] 항목 처리 중 오류: {e}")
             continue
-    return place_ids

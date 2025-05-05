@@ -8,7 +8,7 @@ from service.utils import safe_page_content
 # 장소 상세 정보 수집
 async def fetch_home_page_and_get_place_info(page, place_id, adm_dong_code):
     # 홈 페이지로 이동
-    url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
+    url = f"https://m.place.naver.com/restaurant/{place_id}/home"
     await page.goto(url)
     await page.wait_for_timeout(1000)
 
@@ -78,14 +78,9 @@ async def fetch_home_page_and_get_place_info(page, place_id, adm_dong_code):
 
 # 리뷰 크롤링
 async def fetch_review_page_and_get_reviews(page, place_id):
-    url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
+    url = f"https://m.place.naver.com/restaurant/{place_id}/review"
     await page.goto(url)
-    await page.wait_for_timeout(1000)
-
-    # 리뷰 수 조건 먼저 체크
-    review_url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
-    await page.goto(review_url)
-    await page.wait_for_timeout(1000)
+    await page.wait_for_timeout(3000)
 
     MAX_REVIEWS = 100
     review_header = await page.query_selector('div.place_section_header_title')
@@ -96,7 +91,7 @@ async def fetch_review_page_and_get_reviews(page, place_id):
             total_reviews = int(match.group(1))
             if total_reviews < MAX_REVIEWS:
                 print(f"❌ 리뷰 수 부족: {total_reviews}개 → 수집 제외")
-                return Exception
+            raise ValueError("리뷰 수 부족")
 
     # 스크롤/더보기 버튼 통해 최대한 리뷰 로딩 (최대 MAX_REVIEWS개)
     for _ in range(10): # 더보기 버튼 클릭 최대 횟수
@@ -125,14 +120,14 @@ async def fetch_review_page_and_get_reviews(page, place_id):
                 break
         else:
             break
-    await page.wait_for_timeout(1000)
+    await page.wait_for_timeout(3000)
 
     review_items = await page.query_selector_all("li.place_apply_pui")
 
     review_count = len(review_items)
     if review_count < MAX_REVIEWS:
         print(f"리뷰 수 부족({review_count}개), 크롤링 생략")
-        return Exception
+        return ValueError("리뷰 수 부족")
     else:
         print(f"리뷰 수집 대상: {review_count}개")
 
@@ -226,7 +221,7 @@ async def parse_opening_hours(page):
         return "N/A"
 
 async def fetch_info_page(page: Page, place_id: str):
-    url = f"https://m.place.naver.com/restaurant/{place_id}/information?entry=ple&reviewSort=recent"
+    url = f"https://m.place.naver.com/restaurant/{place_id}/information"
     await page.goto(url, timeout=15000)
     await page.wait_for_load_state('domcontentloaded', timeout=15000)
     for _ in range(6):

@@ -95,17 +95,16 @@ async def scrape_place_details(context, place_id: str, adm_dong_code: int):
     await block_unnecessary_resources(info_page)
     await block_unnecessary_resources(review_page)
 
-    try:
-        # 세 가지 작업을 병렬로 실행. 하나라도 예외 발생 시 전체가 예외를 던집니다.
-        place_info, reviews, info_html = await asyncio.gather(
-            fetch_home_page_and_get_place_info(home_page, place_id, adm_dong_code),
-            fetch_review_page_and_get_reviews(review_page, place_id),
-            fetch_info_page(info_page, place_id),
-        )
-    except Exception as e:
-        # 여기로 오면 place_info, reviews, info_html 중 하나라도 실패한 것
+    # 세 가지 작업을 병렬로 실행. 하나라도 예외 발생 시 전체가 예외를 던짐
+    results = await asyncio.gather(
+        fetch_home_page_and_get_place_info(home_page, place_id, adm_dong_code),
+        fetch_review_page_and_get_reviews(review_page, place_id),
+        fetch_info_page(info_page, place_id),
+        return_exceptions=True)
+    place_info, reviews, info_html = results
+    if isinstance(place_info, Exception) or isinstance(info_html, Exception) or isinstance(reviews, Exception):
+        # 하나라도 실패 시 함수 전체 종료
         print(f"❌ {place_id} - 수집 불충분 → 저장 생략")
-        # 필요하다면 리소스 정리 후
         await home_page.close()
         await info_page.close()
         await review_page.close()
