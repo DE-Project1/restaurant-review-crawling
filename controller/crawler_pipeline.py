@@ -4,14 +4,14 @@ import asyncio
 import os
 import time
 from playwright.async_api import async_playwright, Page
-from storage.save_data import save_place_info_json, save_reviews_json, save_place_raw_html
+from storage.save_data import save_place_info_json, save_reviews_json, save_place_raw_html, save_failed_places_json
 from service.utils import block_unnecessary_resources, safe_page_content, log
 from service.place_data_collector import crawl_place_info, crawl_reviews
 
 RAW_DIR="raw_data"
 TARGET_TXT_PATH="data/target_adm_dong_codes.txt" # 크롤링할 행정동코드
 ADM_DONG_CSV_PATH="data/adm_dong_list.csv" # 행정동 csv 파일
-MAX_PLACES=5
+MAX_PLACES=60
 
 # 메인 실행 함수
 async def run() -> None:
@@ -123,6 +123,7 @@ async def scrape_place_details(context, place_id: str, adm_dong_code: int):
         elapsed = time.time() - start_time
         log("SAVED", place_id, extra=f"{elapsed:.1f} sec")
     except Exception as e:
+        save_failed_places_json(place_id, adm_dong_code)
         log("ERROR", place_id, extra=str(e))
     finally: # 페이지 닫기
         await home_page.close()
