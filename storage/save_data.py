@@ -38,7 +38,7 @@ def save_reviews_json(reviews: List[Dict], adm_dong_code: int) -> None:
     data.extend(reviews)  # 리뷰는 리스트라 extend로 추가
     _save_json_list(path, data)
 
-def save_failed_places_json(place_id: int, adm_dong_code: int) -> None:
+def save_failed_places_json(place_id: str, adm_dong_code: int) -> None:
     """실패한 장소 정보를 JSON으로 저장"""
     os.makedirs(FAILED_PLACES_DIR, exist_ok=True)
     path = os.path.join(FAILED_PLACES_DIR, f"failed_places_{adm_dong_code}.json")

@@ -1,9 +1,12 @@
+import asyncio
 import re
 from datetime import datetime
 import random
+from playwright.async_api import Page
+from service.utils import safe_page_content
 
 # 장소 상세 정보 수집
-async def crawl_place_info(page, place_id, adm_dong_code):
+async def fetch_home_page_and_get_place_info(page, place_id, adm_dong_code):
     # 홈 페이지로 이동
     url = f"https://m.place.naver.com/restaurant/{place_id}/home?entry=ple&reviewSort=recent"
     await page.goto(url)
@@ -74,7 +77,7 @@ async def crawl_place_info(page, place_id, adm_dong_code):
     return info
 
 # 리뷰 크롤링
-async def crawl_reviews(page, place_id):
+async def fetch_review_page_and_get_reviews(page, place_id):
     url = f"https://m.place.naver.com/restaurant/{place_id}/review/visitor?entry=ple&reviewSort=recent"
     await page.goto(url)
     await page.wait_for_timeout(1000)
@@ -221,3 +224,12 @@ async def parse_opening_hours(page):
     except Exception as e:
         print(f"Error parsing opening hours: {e}")
         return "N/A"
+
+async def fetch_info_page(page: Page, place_id: str):
+    url = f"https://m.place.naver.com/restaurant/{place_id}/information?entry=ple&reviewSort=recent"
+    await page.goto(url, timeout=15000)
+    await page.wait_for_load_state('domcontentloaded', timeout=15000)
+    for _ in range(6):
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await asyncio.sleep(0.5)
+    return await safe_page_content(page, timeout=10)

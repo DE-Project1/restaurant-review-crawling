@@ -3,10 +3,10 @@ from service.place_searcher import search_and_fetch_place_ids
 import asyncio
 import os
 import time
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright
 from storage.save_data import save_place_info_json, save_reviews_json, save_place_raw_html, save_failed_places_json
-from service.utils import block_unnecessary_resources, safe_page_content, log
-from service.place_data_collector import crawl_place_info, crawl_reviews
+from service.utils import block_unnecessary_resources, log
+from service.place_data_collector import fetch_home_page_and_get_place_info, fetch_review_page_and_get_reviews, fetch_info_page
 
 RAW_DIR="raw_data"
 TARGET_TXT_PATH="data/target_adm_dong_codes.txt" # 크롤링할 행정동코드
@@ -35,7 +35,7 @@ async def run() -> None:
         try:
             place_ids = await search_and_fetch_place_ids(adm_dong_dict[adm_dong_code], MAX_PLACES) # 최대 수집 장소 수
             print(f"🚀 {adm_dong_code}: {len(place_ids)}개 수집 시작")
-            await crawl_from_place_ids(list(place_ids), RAW_DIR, adm_dong_code)
+            await crawl_from_place_ids(list(place_ids), adm_dong_code)
 
         except Exception as e:
             print(f"❌ [ERROR] 크롤링 중 오류 발생 - {e}")
@@ -44,7 +44,7 @@ async def run() -> None:
         print(f"✅ 전체 소요시간: {global_elapsed:.1f} sec\n")
 
 
-async def crawl_from_place_ids(place_ids: list[str], RAW_DIR, adm_dong_code):
+async def crawl_from_place_ids(place_ids: list[str], adm_dong_code):
     results = []
     async with async_playwright() as p:
         place_ids = list(place_ids)
@@ -98,8 +98,8 @@ async def scrape_place_details(context, place_id: str, adm_dong_code: int):
     try:
         # 세 가지 작업을 병렬로 실행. 하나라도 예외 발생 시 전체가 예외를 던집니다.
         place_info, reviews, info_html = await asyncio.gather(
-            crawl_place_info(home_page, place_id, adm_dong_code),
-            crawl_reviews(review_page, place_id),
+            fetch_home_page_and_get_place_info(home_page, place_id, adm_dong_code),
+            fetch_review_page_and_get_reviews(review_page, place_id),
             fetch_info_page(info_page, place_id),
         )
     except Exception as e:
@@ -129,12 +129,3 @@ async def scrape_place_details(context, place_id: str, adm_dong_code: int):
         await home_page.close()
         await info_page.close()
         await review_page.close()
-
-async def fetch_info_page(page: Page, place_id: str):
-    url = f"https://m.place.naver.com/restaurant/{place_id}/information?entry=ple&reviewSort=recent"
-    await page.goto(url, timeout=15000)
-    await page.wait_for_load_state('domcontentloaded', timeout=15000)
-    for _ in range(6):
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await asyncio.sleep(0.5)
-    return await safe_page_content(page, timeout=10)
